@@ -1,0 +1,29 @@
+# Секреты и локальная среда
+.env
+.env.local
+*.pem
+id_rsa
+id_ed25519
+
+# SSH-ключи (не хранить в Git)
+finalmaxbot
+finalmaxbot.pub
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Node (если появится)
+node_modules/
+dist/
+.next/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

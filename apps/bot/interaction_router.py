@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from apps.bot.generation_factory import build_generation_orchestrator
 from apps.bot.max_client import MaxBotClient
 from apps.bot.max_payload import extract_update_type
 from apps.bot.state_machine_service import StateMachineService
@@ -13,12 +14,22 @@ from packages.shared.settings import Settings
 
 
 class InteractionRouter:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        session_factory: Any,
+        after_commit: list[Any] | None = None,
+    ) -> None:
         self._settings = settings
+        self._after_commit = after_commit if after_commit is not None else []
+        text = build_text_generation(settings)
+        orch = build_generation_orchestrator(settings, session_factory, text)
         self._sm = StateMachineService(
-            build_text_generation(settings),
+            text,
             StubBillingCheckoutService(),
             settings,
+            orchestrator=orch,
+            after_commit=self._after_commit,
         )
 
     async def route(self, update: dict[str, Any], session: Any, client: MaxBotClient) -> None:

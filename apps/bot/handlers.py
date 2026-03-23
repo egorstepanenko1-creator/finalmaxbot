@@ -14,8 +14,11 @@ async def handle_max_update(
     update: dict[str, Any],
     *,
     session: Any,
+    session_factory: Any,
     client: MaxBotClient,
     settings: Settings,
+    after_commit: list[Any] | None = None,
 ) -> None:
-    router = InteractionRouter(settings)
+    bucket = after_commit if after_commit is not None else []
+    router = InteractionRouter(settings, session_factory, bucket)
     await router.route(update, session, client)

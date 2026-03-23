@@ -1,11 +1,12 @@
 """
-M3 сценарии + M4 квоты, paywall, рефералы, звёзды.
+M3 сценарии + M4 квоты, paywall + M5 генерация и доставка.
 Логика вне MAX-транспорта.
 """
 
 from __future__ import annotations
 
 import logging
+import uuid
 from typing import Any
 
 from sqlalchemy import select
@@ -13,6 +14,7 @@ from sqlalchemy.orm import selectinload
 
 import packages.shared.callbacks as cb
 import packages.shared.states as st
+from apps.bot.generation_orchestrator import GenerationOrchestrator
 from apps.bot.max_client import MaxBotClient
 from apps.bot.max_payload import (
     extract_bot_started_user_id,
@@ -54,13 +56,21 @@ class StateMachineService:
         text: TextGenerationPort,
         billing: StubBillingCheckoutService,
         settings: Settings,
+        orchestrator: GenerationOrchestrator,
+        after_commit: list[Any],
     ) -> None:
         self._text = text
         self._billing = billing
         self._settings = settings
+        self._orch = orchestrator
+        self._after_commit = after_commit
         self._ent = EntitlementService(settings)
         self._stars = StarsLedgerService()
         self._referrals = ReferralService(self._stars)
+
+    def _enqueue_after_commit(self, factory: Any) -> None:
+        """factory: lambda, вызов которого возвращает awaitable (coroutine)."""
+        self._after_commit.append(factory)
 
     async def _load_user(self, session: Any, max_user_id: int) -> User | None:
         r = await session.execute(
@@ -240,9 +250,12 @@ class StateMachineService:
             reply = await self._text.generate(system_prompt=sys_p, user_prompt=text)
             conv.flow_state = st.IDLE
             conv.flow_data = None
+            if not reply.ok:
+                await client.send_message(user_id=max_uid, text=reply.text)
+                return
             session.add(UsageEvent(user_id=user.id, kind="text_question", units=1, meta={"flow": "consumer"}))
-            await self._log_chat(session, conv, "assistant", reply, {"provider": "text"})
-            await client.send_message(user_id=max_uid, text=reply)
+            await self._log_chat(session, conv, "assistant", reply.text, {"provider": reply.provider})
+            await client.send_message(user_id=max_uid, text=reply.text)
             await client.send_message(
                 user_id=max_uid,
                 text="Что дальше?",
@@ -263,21 +276,25 @@ class StateMachineService:
                 conv.flow_state = st.IDLE
                 return
             await self._log_chat(session, conv, "user", text, {"flow": st.CONSUMER_AWAIT_GREETING_PROMPT})
-            sys_p = (
-                "Ты помогаешь составлять тёплые поздравления для близких. Язык простой, искренний, без клише."
-            )
-            user_p = f"Составь поздравление по этим пожеланиям:\n{text}"
-            reply = await self._text.generate(system_prompt=sys_p, user_prompt=user_p)
+            _, plan = await self._ent.evaluate(session, user)
+            wm = self._ent.watermark_for_next_image_job(plan)
             conv.flow_state = st.IDLE
             conv.flow_data = None
-            session.add(UsageEvent(user_id=user.id, kind="text_greeting", units=1, meta={"flow": "consumer"}))
-            await self._referrals.try_reward_on_first_image_flow(session, user)
-            await self._log_chat(session, conv, "assistant", reply, {"provider": "text"})
-            await client.send_message(user_id=max_uid, text=reply)
+            menu = consumer_main_menu()
             await client.send_message(
                 user_id=max_uid,
-                text="Могу помочь ещё — выберите в меню:",
-                attachments=consumer_main_menu(),
+                text="Минуту, готовлю текст поздравления и открытку — это может занять до пары минут.",
+            )
+            self._enqueue_after_commit(
+                lambda: self._orch.run_greeting_bundle_after_commit(
+                    max_user_id=max_uid,
+                    internal_user_id=user.id,
+                    conversation_id=conv.id,
+                    raw_prompt=text,
+                    wm_required=wm,
+                    client=client,
+                    followup_menu=menu,
+                )
             )
             return
 
@@ -294,20 +311,25 @@ class StateMachineService:
                 conv.flow_state = st.IDLE
                 return
             await self._log_chat(session, conv, "user", text, {"flow": st.BUSINESS_AWAIT_VK_POST_PROMPT})
-            sys_p = (
-                "Ты личный маркетолог для малого бизнеса в России. Пишешь посты для VK: структура, эмодзи умеренно, "
-                "понятный призыв. 2–3 варианта заголовка в начале, затем основной текст до ~1200 символов."
-            )
-            reply = await self._text.generate(system_prompt=sys_p, user_prompt=text)
+            _, plan = await self._ent.evaluate(session, user)
+            wm = self._ent.watermark_for_next_image_job(plan)
             conv.flow_state = st.IDLE
             conv.flow_data = None
-            session.add(UsageEvent(user_id=user.id, kind="text_vk_post", units=1, meta={"flow": "business"}))
-            await self._log_chat(session, conv, "assistant", reply, {"provider": "text"})
-            await client.send_message(user_id=max_uid, text=reply)
+            menu = business_main_menu()
             await client.send_message(
                 user_id=max_uid,
-                text="Ещё задачи — в меню:",
-                attachments=business_main_menu(),
+                text="Готовлю текст поста для VK и иллюстрацию — подождите немного.",
+            )
+            self._enqueue_after_commit(
+                lambda: self._orch.run_vk_bundle_after_commit(
+                    max_user_id=max_uid,
+                    internal_user_id=user.id,
+                    conversation_id=conv.id,
+                    topic=text,
+                    wm_required=wm,
+                    client=client,
+                    followup_menu=menu,
+                )
             )
             return
 
@@ -329,33 +351,41 @@ class StateMachineService:
                 return
             _, plan = await self._ent.evaluate(session, user)
             await self._log_chat(session, conv, "user", text, {"flow": conv.flow_state})
+            correlation_id = str(uuid.uuid4())
+            ctx = "consumer_image" if mode == "consumer" else "business_image"
             job = GenerationJob(
                 user_id=user.id,
                 conversation_id=conv.id,
                 feature_type="image",
                 provider="stub",
-                status="placeholder",
+                status="queued",
                 prompt=text,
                 watermark_required=self._ent.watermark_for_next_image_job(plan),
+                correlation_id=correlation_id,
+                context_kind=ctx,
+                meta={"mode": mode},
             )
             session.add(job)
             await session.flush()
             conv.flow_state = st.IDLE
             conv.flow_data = None
-            ukind = "consumer_image_intake" if mode == "consumer" else "business_image_intake"
-            session.add(UsageEvent(user_id=user.id, kind=ukind, units=1, meta={"mode": mode}))
-            await self._referrals.try_reward_on_first_image_flow(session, user)
-            wm = "Да (тариф free)" if job.watermark_required else "Нет (платный тариф)"
-            ack = (
-                "Заявка на картинку принята.\n"
-                f"Номер заявки: {job.id}\n"
-                f"Водяной знак по тарифу: {wm}\n"
-                "Описание сохранено; генерация изображения подключится позже."
-            )
-            await self._log_chat(session, conv, "assistant", ack, {"job_id": job.id})
-            await client.send_message(user_id=max_uid, text=ack)
+            jid = job.id
             menu = consumer_main_menu() if mode == "consumer" else business_main_menu()
-            await client.send_message(user_id=max_uid, text="Что дальше?", attachments=menu)
+            ack = (
+                f"Принял описание (заявка №{jid}). Генерирую картинку — обычно до пары минут.\n"
+                f"Водяной знак по тарифу: {'да' if job.watermark_required else 'нет'}."
+            )
+            await self._log_chat(session, conv, "assistant", ack, {"job_id": jid, "correlation_id": correlation_id})
+            await client.send_message(user_id=max_uid, text=ack)
+            self._enqueue_after_commit(
+                lambda: self._orch.run_image_job_after_commit(
+                    jid,
+                    max_uid,
+                    client,
+                    mode=mode,
+                    followup_menu=menu,
+                )
+            )
             return
 
         logger.warning("Unhandled flow_state=%s for user=%s", conv.flow_state, max_uid)

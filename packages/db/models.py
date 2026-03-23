@@ -107,9 +107,38 @@ class GenerationJob(Base):
     )
     feature_type: Mapped[str] = mapped_column(String(64))
     provider: Mapped[str] = mapped_column(String(64), default="stub")
-    status: Mapped[str] = mapped_column(String(32), default="placeholder")
+    # M5: queued -> processing -> succeeded | failed
+    status: Mapped[str] = mapped_column(String(32), default="queued")
     prompt: Mapped[str] = mapped_column(Text())
     watermark_required: Mapped[bool] = mapped_column(default=True)
+    correlation_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    context_kind: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    meta: Mapped[dict[str, Any] | None] = mapped_column(JSONObj, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    provider_meta: Mapped[dict[str, Any] | None] = mapped_column(JSONObj, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+
+class StoredFile(Base):
+    """Метаданные файла в replaceable storage (M5)."""
+
+    __tablename__ = "stored_files"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    generation_job_id: Mapped[int] = mapped_column(
+        ForeignKey("generation_jobs.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+    )
+    storage_backend: Mapped[str] = mapped_column(String(32), default="local")
+    storage_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    byte_size: Mapped[int] = mapped_column(Integer, default=0)
+    sha256_hex: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    meta: Mapped[dict[str, Any] | None] = mapped_column(JSONObj, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 

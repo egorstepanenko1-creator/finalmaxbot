@@ -5,6 +5,7 @@ from typing import Any, Protocol, runtime_checkable
 
 import httpx
 
+from packages.domain.text_generation import TextGenerationOutput
 from packages.shared.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -12,18 +13,22 @@ logger = logging.getLogger(__name__)
 
 @runtime_checkable
 class TextGenerationPort(Protocol):
-    async def generate(self, *, system_prompt: str, user_prompt: str) -> str: ...
+    async def generate(self, *, system_prompt: str, user_prompt: str) -> TextGenerationOutput: ...
 
 
 class StubTextGenerationProvider:
     """Детерминированный stub с тем же контрактом, что и облачный провайдер."""
 
-    async def generate(self, *, system_prompt: str, user_prompt: str) -> str:
+    async def generate(self, *, system_prompt: str, user_prompt: str) -> TextGenerationOutput:
         u = user_prompt.strip().replace("\n", " ")[:400]
-        return (
-            "[stub-текст] Ваш запрос принят.\n\n"
-            f"Кратко: {u}\n\n"
-            "(Подключите YANDEX_CLOUD_API_KEY и YANDEX_FOLDER_ID для живой генерации.)"
+        return TextGenerationOutput(
+            text=(
+                "[stub-текст] Ваш запрос принят.\n\n"
+                f"Кратко: {u}\n\n"
+                "(Подключите YANDEX_CLOUD_API_KEY и YANDEX_FOLDER_ID для живой генерации.)"
+            ),
+            ok=True,
+            provider="stub",
         )
 
 
@@ -33,7 +38,7 @@ class YandexFoundationTextProvider:
         fid = settings.yandex_folder_id or ""
         self._model_uri = settings.yandex_model_uri or f"gpt://{fid}/yandexgpt/latest"
 
-    async def generate(self, *, system_prompt: str, user_prompt: str) -> str:
+    async def generate(self, *, system_prompt: str, user_prompt: str) -> TextGenerationOutput:
         key = self._s.yandex_cloud_api_key
         if not key or not self._s.yandex_folder_id:
             return await StubTextGenerationProvider().generate(
@@ -61,19 +66,39 @@ class YandexFoundationTextProvider:
                 )
             if r.status_code >= 400:
                 logger.warning("Yandex completion HTTP %s: %s", r.status_code, r.text[:500])
-                return (
-                    "Не удалось получить ответ от нейросети. Попробуйте позже.\n"
-                    f"(код {r.status_code})"
+                return TextGenerationOutput(
+                    text="Не удалось получить ответ от нейросети. Попробуйте позже.",
+                    ok=False,
+                    provider="yandex",
+                    error_code=f"http_{r.status_code}",
                 )
             data = r.json()
             alts = data.get("result", {}).get("alternatives") or []
             if not alts:
-                return "Пустой ответ модели. Переформулируйте, пожалуйста."
+                return TextGenerationOutput(
+                    text="Пустой ответ модели. Переформулируйте, пожалуйста.",
+                    ok=False,
+                    provider="yandex",
+                    error_code="empty_alternatives",
+                )
             text = (alts[0].get("message") or {}).get("text")
-            return str(text).strip() if text else "Пустой ответ модели."
+            t = str(text).strip() if text else ""
+            if not t:
+                return TextGenerationOutput(
+                    text="Пустой ответ модели. Переформулируйте, пожалуйста.",
+                    ok=False,
+                    provider="yandex",
+                    error_code="empty_text",
+                )
+            return TextGenerationOutput(text=t, ok=True, provider="yandex")
         except Exception as e:
             logger.exception("Yandex completion failed")
-            return f"Ошибка сети при обращении к Yandex GPT: {type(e).__name__}"
+            return TextGenerationOutput(
+                text="Сервис временно недоступен. Попробуйте чуть позже.",
+                ok=False,
+                provider="yandex",
+                error_code=type(e).__name__,
+            )
 
 
 def build_text_generation(settings: Settings) -> TextGenerationPort:

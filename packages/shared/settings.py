@@ -50,6 +50,19 @@ class Settings(BaseSettings):
     # Внутренние debug-эндпоинты: если пусто — отключены
     internal_debug_key: str | None = None
 
+    # --- M5: выдача контента, хранилище, водяной знак, Yandex Art (опционально) ---
+    m5_local_storage_root: str = "./data/generated"
+    m5_watermark_text: str = "Free"
+    m5_watermark_opacity: float = 0.35
+    m5_max_upload_ready_delay_sec: float = 0.75
+    m5_max_send_attachment_retries: int = 5
+    yandex_image_generation_enabled: bool = False
+    yandex_image_model_uri: str | None = None
+    yandex_image_async_url: str = "https://llm.api.cloud.yandex.net/foundationModels/v1/imageGenerationAsync"
+    yandex_image_operations_url_template: str = "https://llm.api.cloud.yandex.net/operations/{operation_id}"
+    yandex_image_poll_interval_sec: float = 2.0
+    yandex_image_poll_timeout_sec: float = 120.0
+
 
 @lru_cache
 def get_settings() -> Settings:

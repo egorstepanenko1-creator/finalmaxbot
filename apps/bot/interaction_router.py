@@ -7,7 +7,7 @@ from typing import Any
 from apps.bot.max_client import MaxBotClient
 from apps.bot.max_payload import extract_update_type
 from apps.bot.state_machine_service import StateMachineService
-from packages.billing.stub import StubBillingService
+from packages.billing.stub_service import StubBillingCheckoutService
 from packages.providers.text_generation import build_text_generation
 from packages.shared.settings import Settings
 
@@ -17,7 +17,8 @@ class InteractionRouter:
         self._settings = settings
         self._sm = StateMachineService(
             build_text_generation(settings),
-            StubBillingService(),
+            StubBillingCheckoutService(),
+            settings,
         )
 
     async def route(self, update: dict[str, Any], session: Any, client: MaxBotClient) -> None:

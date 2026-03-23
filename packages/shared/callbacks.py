@@ -32,6 +32,14 @@ BUSINESS_MY_STARS = join_parts("business", "my_stars")
 BUSINESS_INVITE = join_parts("business", "invite_friend")
 BUSINESS_SUBSCRIPTION = join_parts("business", "subscription")
 
+# Paywall / реферал
+PAYWALL_SUBSCRIBE = join_parts("paywall", "subscribe")
+PAYWALL_INVITE = join_parts("paywall", "invite")
+PAYWALL_ENTER_CODE = join_parts("paywall", "enter_code")
+
+CONSUMER_ENTER_REFERRAL = join_parts("consumer", "enter_referral_code")
+BUSINESS_ENTER_REFERRAL = join_parts("business", "enter_referral_code")
+
 
 def parse_payload(raw: str | None) -> tuple[str, list[str]]:
     """Возвращает (версия или 'legacy', сегменты после версии)."""
@@ -57,3 +65,7 @@ def is_v1_business_action(segments: list[str], action: str) -> bool:
 
 def is_v1_mode(segments: list[str], mode: str) -> bool:
     return segments == ["mode", mode]
+
+
+def is_v1_paywall_action(segments: list[str], action: str) -> bool:
+    return segments == ["paywall", action]

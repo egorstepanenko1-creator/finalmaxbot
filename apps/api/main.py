@@ -1,9 +1,14 @@
 import logging
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
+from alembic.config import Config
 from fastapi import FastAPI
 
+from alembic import command
+from apps.api.internal_m4 import router as internal_m4_router
 from apps.bot.router import router as max_router
 from packages.db.session import create_engine, get_session_factory, init_db
 from packages.shared.settings import get_settings
@@ -18,8 +23,16 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
+    os.environ["DATABASE_URL"] = settings.database_url
+    root = Path(__file__).resolve().parents[2]
+    if settings.run_alembic_on_startup:
+        cfg = Config(str(root / "alembic.ini"))
+        command.upgrade(cfg, "head")
+        logger.info("Alembic upgrade head ok")
     engine = create_engine(settings.database_url)
-    await init_db(engine)
+    if settings.allow_runtime_create_all:
+        await init_db(engine)
+        logger.info("Runtime create_all applied (local flag)")
     factory = get_session_factory(engine)
     app.state.engine = engine
     app.state.session_factory = factory
@@ -42,6 +55,7 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(max_router)
+    app.include_router(internal_m4_router)
     return app
 
 

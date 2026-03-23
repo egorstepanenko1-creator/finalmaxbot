@@ -55,6 +55,13 @@ def consumer_main_menu() -> list[dict[str, Any]]:
                             "payload": cb.CONSUMER_SUBSCRIPTION,
                         },
                     ),
+                    _row(
+                        {
+                            "type": "callback",
+                            "text": "Ввести код приглашения",
+                            "payload": cb.CONSUMER_ENTER_REFERRAL,
+                        },
+                    ),
                 ]
             },
         }
@@ -96,6 +103,13 @@ def business_main_menu() -> list[dict[str, Any]]:
                             "type": "callback",
                             "text": "Подписка",
                             "payload": cb.BUSINESS_SUBSCRIPTION,
+                        },
+                    ),
+                    _row(
+                        {
+                            "type": "callback",
+                            "text": "Ввести код приглашения",
+                            "payload": cb.BUSINESS_ENTER_REFERRAL,
                         },
                     ),
                 ]

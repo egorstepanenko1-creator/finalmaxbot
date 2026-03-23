@@ -32,6 +32,12 @@ class User(Base):
     current_mode: Mapped[str | None] = mapped_column(String(32), nullable=True)
     onboarding_state: Mapped[str] = mapped_column(String(64), default="new")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    referred_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    referral_code: Mapped[str | None] = mapped_column(String(16), unique=True, nullable=True)
 
     conversation: Mapped[Conversation | None] = relationship(
         back_populates="user", uselist=False, cascade="all, delete-orphan"
@@ -103,6 +109,7 @@ class GenerationJob(Base):
     provider: Mapped[str] = mapped_column(String(64), default="stub")
     status: Mapped[str] = mapped_column(String(32), default="placeholder")
     prompt: Mapped[str] = mapped_column(Text())
+    watermark_required: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 

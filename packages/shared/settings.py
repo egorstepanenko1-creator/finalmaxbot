@@ -32,6 +32,24 @@ class Settings(BaseSettings):
     yandex_model_uri: str | None = None
     yandex_completion_url: str = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
 
+    # --- M4 monetization / quotas (config-driven) ---
+    m4_consumer_free_images_per_rolling_24h: int = 3
+    m4_consumer_free_text_chats_per_rolling_24h: int = 15
+    m4_consumer_plus_max_images_per_month: int = 120
+    m4_consumer_plus_text_chats_per_rolling_24h: int = 100
+    m4_business_free_images_per_rolling_24h: int = 3
+    m4_business_free_text_chats_per_rolling_24h: int = 20
+    m4_business_marketer_max_images_per_month: int = 120
+    m4_business_marketer_max_vk_posts_per_month: int = 30
+    m4_business_marketer_text_chats_per_rolling_24h: int = 100
+
+    # Схема: Alembic по умолчанию; create_all только если явно включено (локалка)
+    run_alembic_on_startup: bool = True
+    allow_runtime_create_all: bool = False
+
+    # Внутренние debug-эндпоинты: если пусто — отключены
+    internal_debug_key: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:

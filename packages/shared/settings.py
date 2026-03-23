@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     # Postgres (Supabase) или локально sqlite+aiosqlite
     database_url: str = "sqlite+aiosqlite:///./finalmaxbot.db"
 
+    # Для проверки REST (опционально)
+    supabase_url: str | None = None
+    supabase_anon_key: str | None = None
+
     # Если false — не дергаем platform-api (только логи); удобно без токена
     max_outbound_enabled: bool = True
 

@@ -9,6 +9,9 @@ id_ed25519
 finalmaxbot
 finalmaxbot.pub
 
+# Локальная SQLite при разработке
+*.db
+
 # Python
 .venv/
 venv/
@@ -16,6 +19,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .mypy_cache/
+*.egg-info/
 
 # Node (если появится)
 node_modules/

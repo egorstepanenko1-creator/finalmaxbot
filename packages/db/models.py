@@ -190,3 +190,21 @@ class Subscription(Base):
     status: Mapped[str] = mapped_column(String(32), default="inactive")
     meta: Mapped[dict[str, Any] | None] = mapped_column(JSONObj, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class BillingEvent(Base):
+    """Идемпотентный журнал колбэков Т-Банка (M6)."""
+
+    __tablename__ = "billing_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    idempotency_key: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    provider: Mapped[str] = mapped_column(String(32), default="tbank")
+    event_type: Mapped[str] = mapped_column(String(64), default="notification")
+    outcome: Mapped[str] = mapped_column(String(32), default="received")
+    order_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    plan_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    payload_safe: Mapped[dict[str, Any] | None] = mapped_column(JSONObj, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)

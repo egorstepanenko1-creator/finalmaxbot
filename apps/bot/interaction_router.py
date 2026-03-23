@@ -8,7 +8,7 @@ from apps.bot.generation_factory import build_generation_orchestrator
 from apps.bot.max_client import MaxBotClient
 from apps.bot.max_payload import extract_update_type
 from apps.bot.state_machine_service import StateMachineService
-from packages.billing.stub_service import StubBillingCheckoutService
+from packages.billing.factory import get_billing_service
 from packages.providers.text_generation import build_text_generation
 from packages.shared.settings import Settings
 
@@ -26,7 +26,7 @@ class InteractionRouter:
         orch = build_generation_orchestrator(settings, session_factory, text)
         self._sm = StateMachineService(
             text,
-            StubBillingCheckoutService(),
+            get_billing_service(settings),
             settings,
             orchestrator=orch,
             after_commit=self._after_commit,

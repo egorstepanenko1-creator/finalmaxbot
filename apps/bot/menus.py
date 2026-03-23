@@ -127,7 +127,7 @@ def mode_selection_keyboard() -> list[dict[str, Any]]:
                     _row(
                         {
                             "type": "callback",
-                            "text": "Для себя",
+                            "text": "Для меня",
                             "payload": cb.MODE_CONSUMER,
                         },
                         {

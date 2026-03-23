@@ -63,6 +63,17 @@ class Settings(BaseSettings):
     yandex_image_poll_interval_sec: float = 2.0
     yandex_image_poll_timeout_sec: float = 120.0
 
+    # --- M6: Т-Банк (эквайринг v2), webhook, подписки ---
+    tbank_terminal_key: str | None = None
+    tbank_password: str | None = None
+    tbank_api_base: str = "https://securepay.tinkoff.ru/v2"
+    tbank_notification_url: str | None = None
+    tbank_success_url: str | None = None
+    tbank_payment_description_prefix: str = "finalmaxbot:"
+    tbank_skip_signature_verify: bool = False
+    m6_subscription_period_days: int = 30
+    m6_require_max_token_if_outbound: bool = True
+
 
 @lru_cache
 def get_settings() -> Settings:

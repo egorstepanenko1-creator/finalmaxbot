@@ -8,10 +8,12 @@ from alembic.config import Config
 from fastapi import FastAPI
 
 from alembic import command
+from apps.api.billing_webhook import router as billing_webhook_router
 from apps.api.internal_m4 import router as internal_m4_router
 from apps.bot.router import router as max_router
 from packages.db.session import create_engine, get_session_factory, init_db
 from packages.shared.settings import get_settings
+from packages.shared.startup_checks import warn_launch_readiness
 
 logging.basicConfig(
     level=logging.INFO,
@@ -23,6 +25,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
+    warn_launch_readiness(settings)
     os.environ["DATABASE_URL"] = settings.database_url
     root = Path(__file__).resolve().parents[2]
     if settings.run_alembic_on_startup:
@@ -56,6 +59,7 @@ def create_app() -> FastAPI:
 
     app.include_router(max_router)
     app.include_router(internal_m4_router)
+    app.include_router(billing_webhook_router)
     return app
 
 

@@ -34,6 +34,8 @@ BUSINESS_SUBSCRIPTION = join_parts("business", "subscription")
 
 # Paywall / реферал
 PAYWALL_SUBSCRIBE = join_parts("paywall", "subscribe")
+PAYWALL_SUBSCRIBE_CONSUMER_PLUS = join_parts("paywall", "subscribe_consumer_plus")
+PAYWALL_SUBSCRIBE_BUSINESS_PLAN = join_parts("paywall", "subscribe_business")
 PAYWALL_INVITE = join_parts("paywall", "invite")
 PAYWALL_ENTER_CODE = join_parts("paywall", "enter_code")
 
@@ -69,3 +71,11 @@ def is_v1_mode(segments: list[str], mode: str) -> bool:
 
 def is_v1_paywall_action(segments: list[str], action: str) -> bool:
     return segments == ["paywall", action]
+
+
+def is_paywall_subscribe_variant(segments: list[str]) -> bool:
+    return segments in (
+        ["paywall", "subscribe"],
+        ["paywall", "subscribe_consumer_plus"],
+        ["paywall", "subscribe_business"],
+    )

@@ -26,10 +26,17 @@ async def resolve_plan_code(session: Any, user: User) -> str:
         .limit(1)
     )
     sub = r.scalars().first()
-    if sub and sub.plan_code in (
+    now = datetime.now(UTC)
+    if sub and sub.status == "active" and sub.plan_code in (
         "consumer_plus_290",
         "business_marketer_490",
     ):
+        if sub.expires_at is not None:
+            exp = sub.expires_at
+            if exp.tzinfo is None:
+                exp = exp.replace(tzinfo=UTC)
+            if exp < now:
+                return "business_free" if user.current_mode == "business" else "consumer_free"
         return sub.plan_code
     if user.current_mode == "business":
         return "business_free"

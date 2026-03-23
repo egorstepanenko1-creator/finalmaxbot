@@ -8,7 +8,7 @@ from packages.billing.domain import CheckoutSessionResult, SubscriptionActivatio
 
 
 @runtime_checkable
-class BillingCheckoutPort(Protocol):
+class BillingPort(Protocol):
     async def create_checkout_session(
         self,
         *,
@@ -28,6 +28,8 @@ class BillingCheckoutPort(Protocol):
 
     async def cancel_subscription(self, *, session: Any, user_id: int) -> bool: ...
 
-    async def handle_provider_webhook(self, *, payload: bytes, headers: dict[str, str]) -> str:
-        """Плейсхолдер: вернуть 'ignored' | 'processed'."""
-        ...
+    async def handle_provider_webhook(self, *, payload: bytes, headers: dict[str, str]) -> str: ...
+
+    def subscription_ux_message(self) -> str: ...
+
+    def invite_friend_ux_message(self, *, referral_code: str) -> str: ...

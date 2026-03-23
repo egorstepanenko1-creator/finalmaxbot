@@ -3,17 +3,17 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
 
 from packages.billing.domain import CheckoutSessionResult, SubscriptionActivation
-from packages.billing.interfaces import BillingCheckoutPort
+from packages.billing.interfaces import BillingPort
 from packages.db.models import Subscription
 
 
-class StubBillingCheckoutService(BillingCheckoutPort):
+class StubBillingCheckoutService(BillingPort):
     async def create_checkout_session(
         self,
         *,
@@ -58,11 +58,14 @@ class StubBillingCheckoutService(BillingCheckoutPort):
         for sub in r.scalars():
             sub.status = "superseded"
 
+        now = datetime.now(UTC)
+        expires = now + timedelta(days=3650)
         sub = Subscription(
             user_id=user_id,
             plan_code=plan_code,
             status="active",
             meta={"external_payment_id": external_payment_id, "stub": True},
+            expires_at=expires,
         )
         session.add(sub)
         await session.flush()
@@ -71,7 +74,7 @@ class StubBillingCheckoutService(BillingCheckoutPort):
             plan_code=plan_code,
             status="active",
             external_id=external_payment_id,
-            activated_at=datetime.now(UTC),
+            activated_at=now,
         )
 
     async def cancel_subscription(self, *, session: Any, user_id: int) -> bool:
@@ -95,8 +98,8 @@ class StubBillingCheckoutService(BillingCheckoutPort):
 
     def subscription_ux_message(self) -> str:
         return (
-            "Подписка и оплата подключаются через Т-Банк — раздел в разработке.\n"
-            "Когда будет готово, здесь появится кнопка оплаты."
+            "Оплата проходит на защищённой странице (в staging — тестовая ссылка-заглушка).\n"
+            "После настройки Т-Банка здесь будет реальная ссылка на оплату."
         )
 
     def invite_friend_ux_message(self, *, referral_code: str) -> str:

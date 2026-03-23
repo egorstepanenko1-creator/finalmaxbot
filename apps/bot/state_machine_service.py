@@ -33,7 +33,7 @@ from apps.bot.paywall import (
     paywall_text_vk_not_entitled,
     paywall_text_vk_quota,
 )
-from packages.billing.stub_service import StubBillingCheckoutService
+from packages.billing.interfaces import BillingPort
 from packages.db.models import (
     ChatMessage,
     Conversation,
@@ -54,7 +54,7 @@ class StateMachineService:
     def __init__(
         self,
         text: TextGenerationPort,
-        billing: StubBillingCheckoutService,
+        billing: BillingPort,
         settings: Settings,
         orchestrator: GenerationOrchestrator,
         after_commit: list[Any],
@@ -163,10 +163,11 @@ class StateMachineService:
         await client.send_message(
             user_id=uid,
             text=(
-                "Здравствуйте! Я помогу с текстами и заявками на картинки.\n"
-                "Всё управление — кнопками ниже, без команд со слэшем.\n"
-                "Сначала выберите, для кого бот:"
+                "Здравствуйте! Я помогу **коротко ответить на вопрос**, "
+                "**сделать картинку или поздравление** — всё через кнопки, без слэш-команд.\n\n"
+                "**Шаг 1.** Выберите, для кого вы сейчас пользуетесь ботом:"
             ),
+            fmt="markdown",
             attachments=mode_selection_keyboard(),
         )
 
@@ -186,7 +187,8 @@ class StateMachineService:
         if user.current_mode is None:
             await client.send_message(
                 user_id=max_uid,
-                text="Выберите режим кнопками:",
+                text="Сначала нажмите **«Для меня»** или **«Для бизнеса»** — так мы подстроим меню.",
+                fmt="markdown",
                 attachments=mode_selection_keyboard(),
             )
             return
@@ -408,25 +410,41 @@ class StateMachineService:
         cid: str | None,
     ) -> bool:
         paywall_actions = (
-            cb.is_v1_paywall_action(segments, "subscribe"),
+            cb.is_paywall_subscribe_variant(segments),
             cb.is_v1_paywall_action(segments, "invite"),
             cb.is_v1_paywall_action(segments, "enter_code"),
         )
         if not any(paywall_actions):
             return False
-        if cb.is_v1_paywall_action(segments, "subscribe"):
+        if cb.is_paywall_subscribe_variant(segments):
             if cid:
-                await client.answer_callback(callback_id=cid, notification="Подписка")
-            plan = self._plan_for_checkout(user)
+                await client.answer_callback(callback_id=cid, notification="Оплата")
+            if cb.is_v1_paywall_action(segments, "subscribe_consumer_plus"):
+                plan = "consumer_plus_290"
+            elif cb.is_v1_paywall_action(segments, "subscribe_business"):
+                plan = "business_marketer_490"
+            else:
+                plan = self._plan_for_checkout(user)
             cs = await self._billing.create_checkout_session(
                 user_id=user.id, plan_code=plan, success_return_url=None
             )
+            if not cs.payment_url:
+                await client.send_message(
+                    user_id=max_uid,
+                    text="Платёжная ссылка сейчас недоступна. Попробуйте позже.",
+                    attachments=(
+                        consumer_main_menu()
+                        if user.current_mode == "consumer"
+                        else business_main_menu()
+                    ),
+                )
+                return True
             await client.send_message(
                 user_id=max_uid,
                 text=(
                     f"{self._billing.subscription_ux_message()}\n\n"
-                    f"Тестовая ссылка (stub): {cs.payment_url}\n"
-                    f"План: `{cs.plan_code}`"
+                    f"**Ссылка для оплаты** (Т-Банк, безопасно):\n{cs.payment_url}\n\n"
+                    f"Тариф: `{cs.plan_code}`"
                 ),
                 fmt="markdown",
                 attachments=(
@@ -494,17 +512,18 @@ class StateMachineService:
                 await client.send_message(
                     user_id=max_uid,
                     text=(
-                        "Режим «для себя»: поздравления и картинки.\n"
-                        "Дальше всё просто — нажимайте кнопки. Что сделаем?"
+                        "**Для меня:** вопросы текстом, картинки и поздравления по описанию.\n"
+                        "Дальше только кнопки в меню — выберите, с чего начнём."
                     ),
+                    fmt="markdown",
                     attachments=consumer_main_menu(),
                 )
             else:
                 await client.send_message(
                     user_id=max_uid,
                     text=(
-                        "Режим «для бизнеса»: ваш **личный маркетолог** в MAX.\n"
-                        "Посты для VK и картинки — по тарифу. Выберите действие кнопкой."
+                        "**Для бизнеса:** ваш **личный маркетолог** в MAX — посты для VK и картинки "
+                        "для соцсетей и рекламы. Выберите действие в меню."
                     ),
                     fmt="markdown",
                     attachments=business_main_menu(),
@@ -516,7 +535,8 @@ class StateMachineService:
                 await client.answer_callback(callback_id=cid, notification="Сначала выберите режим")
             await client.send_message(
                 user_id=max_uid,
-                text="Сначала выберите режим «для себя» или «для бизнеса».",
+                text="Сначала выберите режим: **«Для меня»** или **«Для бизнеса»**.",
+                fmt="markdown",
                 attachments=mode_selection_keyboard(),
             )
             return
@@ -631,9 +651,21 @@ class StateMachineService:
                 cs = await self._billing.create_checkout_session(
                     user_id=user.id, plan_code=plan, success_return_url=None
                 )
+                if not cs.payment_url:
+                    await client.send_message(
+                        user_id=max_uid,
+                        text="Платёжная ссылка недоступна. Попробуйте позже.",
+                        attachments=consumer_main_menu(),
+                    )
+                    return
                 await client.send_message(
                     user_id=max_uid,
-                    text=f"{self._billing.subscription_ux_message()}\n\nStub: {cs.payment_url}",
+                    text=(
+                        f"{self._billing.subscription_ux_message()}\n\n"
+                        f"**Оплата (Т-Банк):**\n{cs.payment_url}\n\n"
+                        f"Тариф: `{cs.plan_code}`"
+                    ),
+                    fmt="markdown",
                     attachments=consumer_main_menu(),
                 )
                 return
@@ -703,9 +735,21 @@ class StateMachineService:
                 cs = await self._billing.create_checkout_session(
                     user_id=user.id, plan_code=plan, success_return_url=None
                 )
+                if not cs.payment_url:
+                    await client.send_message(
+                        user_id=max_uid,
+                        text="Платёжная ссылка недоступна. Попробуйте позже.",
+                        attachments=business_main_menu(),
+                    )
+                    return
                 await client.send_message(
                     user_id=max_uid,
-                    text=f"{self._billing.subscription_ux_message()}\n\nStub: {cs.payment_url}",
+                    text=(
+                        f"{self._billing.subscription_ux_message()}\n\n"
+                        f"**Оплата (Т-Банк):**\n{cs.payment_url}\n\n"
+                        f"Тариф: `{cs.plan_code}`"
+                    ),
+                    fmt="markdown",
                     attachments=business_main_menu(),
                 )
                 return

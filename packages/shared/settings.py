@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     # Если false — не дергаем platform-api (только логи); удобно без токена
     max_outbound_enabled: bool = True
 
+    # YandexGPT / Foundation Models (опционально; иначе stub)
+    yandex_cloud_api_key: str | None = None
+    yandex_folder_id: str | None = None
+    # Например: gpt://<folder_id>/yandexgpt/latest
+    yandex_model_uri: str | None = None
+    yandex_completion_url: str = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
+
 
 @lru_cache
 def get_settings() -> Settings:

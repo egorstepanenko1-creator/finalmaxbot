@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Annotated, Any
 
@@ -5,6 +6,8 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
 from apps.bot.handlers import handle_max_update
 from apps.bot.max_client import MaxBotClient
+from apps.bot.webhook_idempotency import compute_idempotency_key
+from packages.db.models import WebhookProcessed, WebhookRawEvent
 from packages.shared.settings import Settings, get_settings
 
 logger = logging.getLogger(__name__)
@@ -34,8 +37,22 @@ async def max_webhook(
     except Exception:
         raise HTTPException(status_code=400, detail="expected json object")
 
+    key = compute_idempotency_key(body)
+    body_str = json.dumps(body, ensure_ascii=False)
     factory = request.app.state.session_factory
+
+    async with factory() as log_session:
+        log_session.add(WebhookRawEvent(idempotency_key=key, body_json=body_str))
+        await log_session.commit()
+
     async with factory() as session:
-        await handle_max_update(body, session=session, client=client)
+        existing = await session.get(WebhookProcessed, key)
+        if existing is not None:
+            logger.info("webhook duplicate skipped key=%s", key)
+            return {"ok": "true", "duplicate": "1"}
+
+        await handle_max_update(body, session=session, client=client, settings=settings)
+        session.add(WebhookProcessed(idempotency_key=key))
+        await session.commit()
 
     return {"ok": "true"}

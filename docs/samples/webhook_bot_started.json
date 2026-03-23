@@ -1,0 +1,9 @@
+{
+  "update_type": "bot_started",
+  "timestamp": 1700000000,
+  "user": {
+    "user_id": 900001,
+    "is_bot": false,
+    "first_name": "Тест"
+  }
+}

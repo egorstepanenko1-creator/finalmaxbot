@@ -19,6 +19,7 @@ dependencies = [
   "sqlalchemy[asyncio]>=2.0.36",
   "aiosqlite>=0.20.0",
   "asyncpg>=0.30.0",
+  "alembic>=1.14.0",
 ]
 
 [project.optional-dependencies]
@@ -29,7 +30,7 @@ dev = [
 ]
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py311"
 
 [tool.ruff.lint]

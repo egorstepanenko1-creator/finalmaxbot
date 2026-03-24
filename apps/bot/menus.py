@@ -5,10 +5,102 @@ from __future__ import annotations
 from typing import Any
 
 import packages.shared.callbacks as cb
+from packages.content.templates_ru import BUSINESS_TEMPLATES, CONSUMER_TEMPLATES
 
 
 def _row(*buttons: dict[str, Any]) -> list[dict[str, Any]]:
     return list(buttons)
+
+
+def consumer_quick_start_keyboard() -> list[dict[str, Any]]:
+    return [
+        {
+            "type": "inline_keyboard",
+            "payload": {
+                "buttons": [
+                    _row(
+                        {
+                            "type": "callback",
+                            "text": "Вопрос",
+                            "payload": cb.CONSUMER_ASK_QUESTION,
+                        },
+                        {
+                            "type": "callback",
+                            "text": "Картинка",
+                            "payload": cb.CONSUMER_CREATE_IMAGE,
+                        },
+                        {
+                            "type": "callback",
+                            "text": "Поздравление",
+                            "payload": cb.CONSUMER_MAKE_GREETING,
+                        },
+                    ),
+                ]
+            },
+        }
+    ]
+
+
+def business_quick_start_keyboard() -> list[dict[str, Any]]:
+    return [
+        {
+            "type": "inline_keyboard",
+            "payload": {
+                "buttons": [
+                    _row(
+                        {
+                            "type": "callback",
+                            "text": "Пост VK",
+                            "payload": cb.BUSINESS_VK_POST,
+                        },
+                        {
+                            "type": "callback",
+                            "text": "Картинка",
+                            "payload": cb.BUSINESS_CREATE_IMAGE,
+                        },
+                    ),
+                ]
+            },
+        }
+    ]
+
+
+def consumer_templates_keyboard() -> list[dict[str, Any]]:
+    buttons: list[list[dict[str, Any]]] = []
+    row: list[dict[str, Any]] = []
+    for t in CONSUMER_TEMPLATES:
+        row.append(
+            {
+                "type": "callback",
+                "text": t.button_label[:35],
+                "payload": cb.template_payload("consumer", t.slug),
+            }
+        )
+        if len(row) == 2:
+            buttons.append(_row(*row))
+            row = []
+    if row:
+        buttons.append(_row(*row))
+    return [{"type": "inline_keyboard", "payload": {"buttons": buttons}}]
+
+
+def business_templates_keyboard() -> list[dict[str, Any]]:
+    buttons: list[list[dict[str, Any]]] = []
+    row = []
+    for t in BUSINESS_TEMPLATES:
+        row.append(
+            {
+                "type": "callback",
+                "text": t.button_label[:35],
+                "payload": cb.template_payload("business", t.slug),
+            }
+        )
+        if len(row) == 2:
+            buttons.append(_row(*row))
+            row = []
+    if row:
+        buttons.append(_row(*row))
+    return [{"type": "inline_keyboard", "payload": {"buttons": buttons}}]
 
 
 def consumer_main_menu() -> list[dict[str, Any]]:
@@ -34,6 +126,13 @@ def consumer_main_menu() -> list[dict[str, Any]]:
                             "type": "callback",
                             "text": "Поздравление",
                             "payload": cb.CONSUMER_MAKE_GREETING,
+                        },
+                    ),
+                    _row(
+                        {
+                            "type": "callback",
+                            "text": "Шаблоны",
+                            "payload": cb.CONSUMER_TEMPLATES_MENU,
                         },
                     ),
                     _row(
@@ -89,6 +188,13 @@ def business_main_menu() -> list[dict[str, Any]]:
                             "type": "callback",
                             "text": "Сделать картинку",
                             "payload": cb.BUSINESS_CREATE_IMAGE,
+                        },
+                    ),
+                    _row(
+                        {
+                            "type": "callback",
+                            "text": "Шаблоны постов",
+                            "payload": cb.BUSINESS_TEMPLATES_MENU,
                         },
                     ),
                     _row(

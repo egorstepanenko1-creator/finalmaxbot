@@ -25,7 +25,15 @@ from apps.bot.max_payload import (
     extract_message_text,
     extract_sender_user_id,
 )
-from apps.bot.menus import business_main_menu, consumer_main_menu, mode_selection_keyboard
+from apps.bot.menus import (
+    business_main_menu,
+    business_quick_start_keyboard,
+    business_templates_keyboard,
+    consumer_main_menu,
+    consumer_quick_start_keyboard,
+    consumer_templates_keyboard,
+    mode_selection_keyboard,
+)
 from apps.bot.paywall import (
     paywall_keyboard,
     paywall_text_image_quota,
@@ -35,6 +43,7 @@ from apps.bot.paywall import (
 )
 from packages.billing.interfaces import BillingPort
 from packages.billing.max_notices import notice_subscription_cancelled
+from packages.content.templates_ru import get_business_template, get_consumer_template
 from packages.db.models import (
     ChatMessage,
     Conversation,
@@ -45,6 +54,7 @@ from packages.db.models import (
 from packages.entitlements.service import EntitlementDecision, EntitlementService
 from packages.providers.text_generation import TextGenerationPort
 from packages.referrals.service import ReferralService
+from packages.shared import user_copy_ru as ru
 from packages.shared.settings import Settings
 from packages.stars.service import StarsLedgerService
 
@@ -144,12 +154,96 @@ class StateMachineService:
                 limit=int(d.detail.get("limit", 0)),
             )
         else:
-            text = "Сейчас это действие недоступно по правилам тарифа."
+            text = ru.PAYWALL_GENERIC
         await client.send_message(
             user_id=max_uid,
             text=text,
             fmt="markdown",
             attachments=paywall_keyboard(),
+        )
+
+    async def _handle_consumer_template_pick(
+        self,
+        session: Any,
+        client: MaxBotClient,
+        user: User,
+        conv: Conversation,
+        max_uid: int,
+        slug: str,
+        cid: str | None,
+    ) -> None:
+        tpl = get_consumer_template(slug)
+        if tpl is None:
+            if cid:
+                await client.answer_callback(callback_id=cid, notification="Нет шаблона")
+            return
+        if tpl.flow_kind == "greeting":
+            d = await self._ent.can_start_consumer_greeting_flow(session, user)
+            if not d.allowed:
+                if cid:
+                    await client.answer_callback(callback_id=cid, notification="Лимит")
+                await self._send_paywall_for_decision(client, max_uid, d)
+                return
+            conv.flow_state = st.CONSUMER_AWAIT_GREETING_PROMPT
+        elif tpl.flow_kind == "image":
+            d = await self._ent.can_start_consumer_image_flow(session, user)
+            if not d.allowed:
+                if cid:
+                    await client.answer_callback(callback_id=cid, notification="Лимит")
+                await self._send_paywall_for_decision(client, max_uid, d)
+                return
+            conv.flow_state = st.CONSUMER_AWAIT_IMAGE_PROMPT
+        else:
+            return
+        if cid:
+            await client.answer_callback(callback_id=cid, notification="Шаблон")
+        await client.send_message(
+            user_id=max_uid,
+            text=ru.TEMPLATE_FOLLOWUP.format(draft=tpl.draft),
+            fmt="markdown",
+            attachments=consumer_main_menu(),
+        )
+
+    async def _handle_business_template_pick(
+        self,
+        session: Any,
+        client: MaxBotClient,
+        user: User,
+        conv: Conversation,
+        max_uid: int,
+        slug: str,
+        cid: str | None,
+    ) -> None:
+        tpl = get_business_template(slug)
+        if tpl is None:
+            if cid:
+                await client.answer_callback(callback_id=cid, notification="Нет шаблона")
+            return
+        if tpl.flow_kind == "vk":
+            d = await self._ent.can_start_business_vk_flow(session, user)
+            if not d.allowed:
+                if cid:
+                    await client.answer_callback(callback_id=cid, notification="Недоступно")
+                await self._send_paywall_for_decision(client, max_uid, d)
+                return
+            conv.flow_state = st.BUSINESS_AWAIT_VK_POST_PROMPT
+        elif tpl.flow_kind == "image":
+            d = await self._ent.can_start_business_image_flow(session, user)
+            if not d.allowed:
+                if cid:
+                    await client.answer_callback(callback_id=cid, notification="Лимит")
+                await self._send_paywall_for_decision(client, max_uid, d)
+                return
+            conv.flow_state = st.BUSINESS_AWAIT_IMAGE_PROMPT
+        else:
+            return
+        if cid:
+            await client.answer_callback(callback_id=cid, notification="Шаблон")
+        await client.send_message(
+            user_id=max_uid,
+            text=ru.TEMPLATE_FOLLOWUP.format(draft=tpl.draft),
+            fmt="markdown",
+            attachments=business_main_menu(),
         )
 
     async def on_bot_started(
@@ -163,11 +257,7 @@ class StateMachineService:
         await self._ensure_conversation(session, user)
         await client.send_message(
             user_id=uid,
-            text=(
-                "Здравствуйте! Я помогу **коротко ответить на вопрос**, "
-                "**сделать картинку или поздравление** — всё через кнопки, без слэш-команд.\n\n"
-                "**Шаг 1.** Выберите, для кого вы сейчас пользуетесь ботом:"
-            ),
+            text=f"{ru.WELCOME}\n\n{ru.MODE_SELECT_NUDGE}",
             fmt="markdown",
             attachments=mode_selection_keyboard(),
         )
@@ -188,7 +278,7 @@ class StateMachineService:
         if user.current_mode is None:
             await client.send_message(
                 user_id=max_uid,
-                text="Сначала нажмите **«Для меня»** или **«Для бизнеса»** — так мы подстроим меню.",
+                text=ru.MODE_SELECT_NUDGE,
                 fmt="markdown",
                 attachments=mode_selection_keyboard(),
             )
@@ -196,30 +286,24 @@ class StateMachineService:
 
         if conv.flow_state == st.AWAIT_REFERRAL_CODE:
             if not text.strip():
-                await client.send_message(user_id=max_uid, text="Введите код одним сообщением (как вам дали).")
+                await client.send_message(user_id=max_uid, text=ru.REFERRAL_CODE_EMPTY)
                 return
             ok, reason = await self._referrals.attach_by_code(session, user, text.strip())
             conv.flow_state = st.IDLE
             conv.flow_data = None
             if ok:
-                await client.send_message(user_id=max_uid, text="Код принят! Спасибо, что пришли по приглашению.")
+                await client.send_message(user_id=max_uid, text=ru.REFERRAL_MESSAGES["accepted"])
             else:
-                msgs = {
-                    "already_attached": "У вас уже указан пригласивший.",
-                    "unknown_code": "Такого кода нет. Проверьте и попробуйте снова.",
-                    "self_referral": "Нельзя использовать свой код.",
-                    "invitee_already_has_referral": "Приглашение уже было учтено ранее.",
-                }
                 await client.send_message(
                     user_id=max_uid,
-                    text=msgs.get(reason, "Не получилось применить код."),
+                    text=ru.REFERRAL_MESSAGES.get(reason, ru.REFERRAL_MESSAGES["default_fail"]),
                 )
             menu = (
                 consumer_main_menu()
                 if user.current_mode == "consumer"
                 else business_main_menu()
             )
-            await client.send_message(user_id=max_uid, text="Меню:", attachments=menu)
+            await client.send_message(user_id=max_uid, text=ru.MENU_AFTER_REFERRAL, attachments=menu)
             return
 
         if conv.flow_state == st.IDLE:
@@ -231,7 +315,7 @@ class StateMachineService:
                 )
                 await client.send_message(
                     user_id=max_uid,
-                    text="Выберите действие кнопками в меню — так проще всего.",
+                    text=ru.IDLE_CHOOSE_BUTTONS,
                     attachments=menu,
                 )
                 await self._log_chat(session, conv, "user", text, {"note": "idle_free_text"})
@@ -239,7 +323,7 @@ class StateMachineService:
 
         if conv.flow_state == st.CONSUMER_AWAIT_QUESTION:
             if not text.strip():
-                await client.send_message(user_id=max_uid, text="Напишите вопрос текстом, одним сообщением.")
+                await client.send_message(user_id=max_uid, text=ru.QUESTION_EMPTY)
                 return
             chk = await self._ent.can_complete_text_question(session, user)
             if not chk.allowed:
@@ -261,17 +345,14 @@ class StateMachineService:
             await client.send_message(user_id=max_uid, text=reply.text)
             await client.send_message(
                 user_id=max_uid,
-                text="Что дальше?",
+                text=ru.CONSUMER_AFTER_QUESTION,
                 attachments=consumer_main_menu(),
             )
             return
 
         if conv.flow_state == st.CONSUMER_AWAIT_GREETING_PROMPT:
             if not text.strip():
-                await client.send_message(
-                    user_id=max_uid,
-                    text="Опишите одним сообщением: для кого и какой повод (например: маме на день рождения).",
-                )
+                await client.send_message(user_id=max_uid, text=ru.GREETING_PROMPT, fmt="markdown")
                 return
             chk = await self._ent.can_start_consumer_greeting_flow(session, user)
             if not chk.allowed:
@@ -284,10 +365,7 @@ class StateMachineService:
             conv.flow_state = st.IDLE
             conv.flow_data = None
             menu = consumer_main_menu()
-            await client.send_message(
-                user_id=max_uid,
-                text="Минуту, готовлю текст поздравления и открытку — это может занять до пары минут.",
-            )
+            await client.send_message(user_id=max_uid, text=ru.WORKING_GREETING)
             self._enqueue_after_commit(
                 lambda: self._orch.run_greeting_bundle_after_commit(
                     max_user_id=max_uid,
@@ -303,10 +381,7 @@ class StateMachineService:
 
         if conv.flow_state == st.BUSINESS_AWAIT_VK_POST_PROMPT:
             if not text.strip():
-                await client.send_message(
-                    user_id=max_uid,
-                    text="Опишите тему или акцию для поста одним сообщением (что рекламируем, сроки, тон).",
-                )
+                await client.send_message(user_id=max_uid, text=ru.VK_POST_PROMPT, fmt="markdown")
                 return
             chk = await self._ent.can_start_business_vk_flow(session, user)
             if not chk.allowed:
@@ -319,10 +394,7 @@ class StateMachineService:
             conv.flow_state = st.IDLE
             conv.flow_data = None
             menu = business_main_menu()
-            await client.send_message(
-                user_id=max_uid,
-                text="Готовлю текст поста для VK и иллюстрацию — подождите немного.",
-            )
+            await client.send_message(user_id=max_uid, text=ru.WORKING_VK)
             self._enqueue_after_commit(
                 lambda: self._orch.run_vk_bundle_after_commit(
                     max_user_id=max_uid,
@@ -338,10 +410,12 @@ class StateMachineService:
 
         if conv.flow_state in (st.CONSUMER_AWAIT_IMAGE_PROMPT, st.BUSINESS_AWAIT_IMAGE_PROMPT):
             if not text.strip():
-                await client.send_message(
-                    user_id=max_uid,
-                    text="Опишите картинку одним сообщением: что должно быть на изображении.",
+                _img_hint = (
+                    ru.CREATE_IMAGE_CONSUMER_PROMPT
+                    if conv.flow_state == st.CONSUMER_AWAIT_IMAGE_PROMPT
+                    else ru.CREATE_IMAGE_BUSINESS_PROMPT
                 )
+                await client.send_message(user_id=max_uid, text=_img_hint, fmt="markdown")
                 return
             mode = "consumer" if conv.flow_state == st.CONSUMER_AWAIT_IMAGE_PROMPT else "business"
             if mode == "consumer":
@@ -432,7 +506,8 @@ class StateMachineService:
             if not cs.payment_url:
                 await client.send_message(
                     user_id=max_uid,
-                    text="Платёжная ссылка сейчас недоступна. Попробуйте позже.",
+                    text=ru.PAYMENT_LINK_UNAVAILABLE,
+                    fmt="markdown",
                     attachments=(
                         consumer_main_menu()
                         if user.current_mode == "consumer"
@@ -476,7 +551,7 @@ class StateMachineService:
             conv.flow_state = st.AWAIT_REFERRAL_CODE
             await client.send_message(
                 user_id=max_uid,
-                text="Отправьте **код приглашения** одним сообщением (формат R-XXXXXXXX).",
+                text=ru.REFERRAL_CODE_PROMPT,
                 fmt="markdown",
             )
             return True
@@ -512,22 +587,28 @@ class StateMachineService:
             if chosen_mode == "consumer":
                 await client.send_message(
                     user_id=max_uid,
-                    text=(
-                        "**Для меня:** вопросы текстом, картинки и поздравления по описанию.\n"
-                        "Дальше только кнопки в меню — выберите, с чего начнём."
-                    ),
+                    text=ru.AFTER_MODE_CONSUMER,
                     fmt="markdown",
                     attachments=consumer_main_menu(),
+                )
+                await client.send_message(
+                    user_id=max_uid,
+                    text=ru.FIRST_ACTIONS_CONSUMER_HINT,
+                    fmt="markdown",
+                    attachments=consumer_quick_start_keyboard(),
                 )
             else:
                 await client.send_message(
                     user_id=max_uid,
-                    text=(
-                        "**Для бизнеса:** ваш **личный маркетолог** в MAX — посты для VK и картинки "
-                        "для соцсетей и рекламы. Выберите действие в меню."
-                    ),
+                    text=ru.AFTER_MODE_BUSINESS,
                     fmt="markdown",
                     attachments=business_main_menu(),
+                )
+                await client.send_message(
+                    user_id=max_uid,
+                    text=ru.FIRST_ACTIONS_BUSINESS_HINT,
+                    fmt="markdown",
+                    attachments=business_quick_start_keyboard(),
                 )
             return
 
@@ -536,7 +617,7 @@ class StateMachineService:
                 await client.answer_callback(callback_id=cid, notification="Сначала выберите режим")
             await client.send_message(
                 user_id=max_uid,
-                text="Сначала выберите режим: **«Для меня»** или **«Для бизнеса»**.",
+                text=ru.MODE_SELECT_NUDGE,
                 fmt="markdown",
                 attachments=mode_selection_keyboard(),
             )
@@ -552,23 +633,61 @@ class StateMachineService:
                 await client.answer_callback(callback_id=cid, notification="Кнопка устарела")
             return
 
+        if user.current_mode == "consumer" and cb.is_v1_consumer_action(segments, "templates_menu"):
+            if cid:
+                await client.answer_callback(callback_id=cid, notification="Шаблоны")
+            await client.send_message(
+                user_id=max_uid,
+                text=ru.TEMPLATES_MENU_TITLE_CONSUMER,
+                fmt="markdown",
+                attachments=consumer_templates_keyboard(),
+            )
+            return
+        if user.current_mode == "business" and cb.is_v1_business_action(segments, "templates_menu"):
+            if cid:
+                await client.answer_callback(callback_id=cid, notification="Шаблоны")
+            await client.send_message(
+                user_id=max_uid,
+                text=ru.TEMPLATES_MENU_TITLE_BUSINESS,
+                fmt="markdown",
+                attachments=business_templates_keyboard(),
+            )
+            return
+
+        tpl_sel = cb.parse_template_selection(segments)
+        if tpl_sel:
+            scope, slug = tpl_sel
+            if scope == "consumer" and user.current_mode == "consumer":
+                await self._handle_consumer_template_pick(
+                    session, client, user, conv, max_uid, slug, cid
+                )
+                return
+            if scope == "business" and user.current_mode == "business":
+                await self._handle_business_template_pick(
+                    session, client, user, conv, max_uid, slug, cid
+                )
+                return
+            if cid:
+                await client.answer_callback(callback_id=cid, notification="Сначала режим")
+            await client.send_message(
+                user_id=max_uid,
+                text=ru.MODE_SELECT_NUDGE,
+                fmt="markdown",
+                attachments=mode_selection_keyboard(),
+            )
+            return
+
         if user.current_mode == "consumer" and segments == ["consumer", "enter_referral_code"]:
             conv.flow_state = st.AWAIT_REFERRAL_CODE
             if cid:
                 await client.answer_callback(callback_id=cid, notification="Код")
-            await client.send_message(
-                user_id=max_uid,
-                text="Отправьте код приглашения одним сообщением.",
-            )
+            await client.send_message(user_id=max_uid, text=ru.REFERRAL_CODE_PROMPT, fmt="markdown")
             return
         if user.current_mode == "business" and segments == ["business", "enter_referral_code"]:
             conv.flow_state = st.AWAIT_REFERRAL_CODE
             if cid:
                 await client.answer_callback(callback_id=cid, notification="Код")
-            await client.send_message(
-                user_id=max_uid,
-                text="Отправьте код приглашения одним сообщением.",
-            )
+            await client.send_message(user_id=max_uid, text=ru.REFERRAL_CODE_PROMPT, fmt="markdown")
             return
 
         if user.current_mode == "consumer":
@@ -584,7 +703,7 @@ class StateMachineService:
                     await client.answer_callback(callback_id=cid, notification="Жду вопрос")
                 await client.send_message(
                     user_id=max_uid,
-                    text="Напишите **одним сообщением**, что вас интересует. Я отвечу простым языком.",
+                    text=ru.ASK_QUESTION_PROMPT,
                     fmt="markdown",
                 )
                 return
@@ -600,7 +719,7 @@ class StateMachineService:
                     await client.answer_callback(callback_id=cid, notification="Жду описание")
                 await client.send_message(
                     user_id=max_uid,
-                    text="Опишите **одним сообщением**, какую картинку хотите (предмет, стиль, настроение).",
+                    text=ru.CREATE_IMAGE_CONSUMER_PROMPT,
                     fmt="markdown",
                 )
                 return
@@ -616,10 +735,7 @@ class StateMachineService:
                     await client.answer_callback(callback_id=cid, notification="Жду детали")
                 await client.send_message(
                     user_id=max_uid,
-                    text=(
-                        "**Поздравление:** одним сообщением напишите, для кого и какой повод "
-                        "(например: зятю на юбилей 60 лет, тёплый тон)."
-                    ),
+                    text=ru.GREETING_PROMPT,
                     fmt="markdown",
                 )
                 return
@@ -629,7 +745,7 @@ class StateMachineService:
                     await client.answer_callback(callback_id=cid, notification="Звёзды")
                 await client.send_message(
                     user_id=max_uid,
-                    text=f"У вас **{bal}** звёзд (по журналу начислений).",
+                    text=ru.STARS_CONSUMER.format(balance=bal),
                     fmt="markdown",
                     attachments=consumer_main_menu(),
                 )
@@ -655,7 +771,8 @@ class StateMachineService:
                 if not cs.payment_url:
                     await client.send_message(
                         user_id=max_uid,
-                        text="Платёжная ссылка недоступна. Попробуйте позже.",
+                        text=ru.PAYMENT_LINK_UNAVAILABLE,
+                        fmt="markdown",
                         attachments=consumer_main_menu(),
                     )
                     return
@@ -663,7 +780,7 @@ class StateMachineService:
                     user_id=max_uid,
                     text=(
                         f"{self._billing.subscription_ux_message()}\n\n"
-                        f"**Оплата (Т-Банк):**\n{cs.payment_url}\n\n"
+                        f"**Ссылка на оплату (Т-Банк):**\n{cs.payment_url}\n\n"
                         f"Тариф: `{cs.plan_code}`"
                     ),
                     fmt="markdown",
@@ -684,7 +801,8 @@ class StateMachineService:
                 else:
                     await client.send_message(
                         user_id=max_uid,
-                        text="Сейчас нет платной подписки, для которой можно отключить автопродление.",
+                        text=ru.NO_AUTORENEW_TO_CANCEL,
+                        fmt="markdown",
                         attachments=consumer_main_menu(),
                     )
                 return
@@ -702,10 +820,7 @@ class StateMachineService:
                     await client.answer_callback(callback_id=cid, notification="Жду тему")
                 await client.send_message(
                     user_id=max_uid,
-                    text=(
-                        "**Пост для VK:** одним сообщением опишите, о чём пост "
-                        "(товар, акция, праздник, адрес, сроки — что важно)."
-                    ),
+                    text=ru.VK_POST_PROMPT,
                     fmt="markdown",
                 )
                 return
@@ -721,7 +836,7 @@ class StateMachineService:
                     await client.answer_callback(callback_id=cid, notification="Жду описание")
                 await client.send_message(
                     user_id=max_uid,
-                    text="Опишите **одним сообщением** картинку для бизнеса (логотип, товар, баннер и т.п.).",
+                    text=ru.CREATE_IMAGE_BUSINESS_PROMPT,
                     fmt="markdown",
                 )
                 return
@@ -731,7 +846,7 @@ class StateMachineService:
                     await client.answer_callback(callback_id=cid, notification="Звёзды")
                 await client.send_message(
                     user_id=max_uid,
-                    text=f"У вас **{bal}** звёзд.",
+                    text=ru.STARS_BUSINESS.format(balance=bal),
                     fmt="markdown",
                     attachments=business_main_menu(),
                 )
@@ -757,7 +872,8 @@ class StateMachineService:
                 if not cs.payment_url:
                     await client.send_message(
                         user_id=max_uid,
-                        text="Платёжная ссылка недоступна. Попробуйте позже.",
+                        text=ru.PAYMENT_LINK_UNAVAILABLE,
+                        fmt="markdown",
                         attachments=business_main_menu(),
                     )
                     return
@@ -765,7 +881,7 @@ class StateMachineService:
                     user_id=max_uid,
                     text=(
                         f"{self._billing.subscription_ux_message()}\n\n"
-                        f"**Оплата (Т-Банк):**\n{cs.payment_url}\n\n"
+                        f"**Ссылка на оплату (Т-Банк):**\n{cs.payment_url}\n\n"
                         f"Тариф: `{cs.plan_code}`"
                     ),
                     fmt="markdown",
@@ -786,7 +902,8 @@ class StateMachineService:
                 else:
                     await client.send_message(
                         user_id=max_uid,
-                        text="Сейчас нет платной подписки, для которой можно отключить автопродление.",
+                        text=ru.NO_AUTORENEW_TO_CANCEL,
+                        fmt="markdown",
                         attachments=business_main_menu(),
                     )
                 return

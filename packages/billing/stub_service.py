@@ -12,6 +12,7 @@ from packages.billing import subscription_states as ss
 from packages.billing.domain import CheckoutSessionResult, RecurrentPayload, SubscriptionActivation
 from packages.billing.interfaces import BillingPort
 from packages.db.models import Subscription
+from packages.shared import user_copy_ru as ru
 
 
 class StubBillingCheckoutService(BillingPort):
@@ -213,16 +214,7 @@ class StubBillingCheckoutService(BillingPort):
         return "ignored"
 
     def subscription_ux_message(self) -> str:
-        return (
-            "Оплата проходит на защищённой странице (в staging — тестовая ссылка-заглушка).\n"
-            "В бою подключится **автопродление** по модели Т-Банка (родительская оплата + RebillId + Charge)."
-        )
+        return ru.SUBSCRIPTION_UX_STUB
 
     def invite_friend_ux_message(self, *, referral_code: str) -> str:
-        return (
-            "Пригласите друга в MAX: отправьте ему **код приглашения**.\n"
-            f"Код: `{referral_code}`\n\n"
-            "Когда друг **первый раз** оформит заявку на картинку (или поздравление с квотой картинки), "
-            "вам начислят **+3 звезды** (один раз за друга).\n"
-            "Другу нужно нажать «Ввести код приглашения» и отправить код."
-        )
+        return ru.INVITE_FRIEND_UX.format(code=referral_code)

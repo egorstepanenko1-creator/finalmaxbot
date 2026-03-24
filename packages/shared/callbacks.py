@@ -25,6 +25,7 @@ CONSUMER_MY_STARS = join_parts("consumer", "my_stars")
 CONSUMER_INVITE = join_parts("consumer", "invite_friend")
 CONSUMER_SUBSCRIPTION = join_parts("consumer", "subscription")
 CONSUMER_CANCEL_AUTORENEW = join_parts("consumer", "cancel_autorenew")
+CONSUMER_TEMPLATES_MENU = join_parts("consumer", "templates_menu")
 
 # Business main
 BUSINESS_VK_POST = join_parts("business", "create_vk_post")
@@ -33,6 +34,7 @@ BUSINESS_MY_STARS = join_parts("business", "my_stars")
 BUSINESS_INVITE = join_parts("business", "invite_friend")
 BUSINESS_SUBSCRIPTION = join_parts("business", "subscription")
 BUSINESS_CANCEL_AUTORENEW = join_parts("business", "cancel_autorenew")
+BUSINESS_TEMPLATES_MENU = join_parts("business", "templates_menu")
 
 # Paywall / реферал
 PAYWALL_SUBSCRIBE = join_parts("paywall", "subscribe")
@@ -81,3 +83,14 @@ def is_paywall_subscribe_variant(segments: list[str]) -> bool:
         ["paywall", "subscribe_consumer_plus"],
         ["paywall", "subscribe_business"],
     )
+
+
+def parse_template_selection(segments: list[str]) -> tuple[str, str] | None:
+    """tpl|consumer|slug или tpl|business|slug → (consumer|business, slug)."""
+    if len(segments) == 3 and segments[0] == "tpl" and segments[1] in ("consumer", "business"):
+        return segments[1], segments[2]
+    return None
+
+
+def template_payload(scope: str, slug: str) -> str:
+    return join_parts("tpl", scope, slug)

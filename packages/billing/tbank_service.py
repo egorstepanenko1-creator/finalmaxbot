@@ -16,6 +16,7 @@ from packages.billing.domain import CheckoutSessionResult, RecurrentPayload, Sub
 from packages.billing.interfaces import BillingPort
 from packages.billing.tbank.token import attach_token, build_tbank_token
 from packages.db.models import Subscription
+from packages.shared import user_copy_ru as ru
 
 logger = logging.getLogger(__name__)
 
@@ -358,19 +359,10 @@ class TBankBillingService(BillingPort):
         return "ignored"
 
     def subscription_ux_message(self) -> str:
-        return (
-            "Оплата проходит на защищённой странице Т-Банка. Подписка с **автопродлением**: "
-            "по окончании периода списание повторится автоматически (если вы не отмените продление в меню)."
-        )
+        return ru.SUBSCRIPTION_UX_LIVE
 
     def invite_friend_ux_message(self, *, referral_code: str) -> str:
-        return (
-            "Пригласите друга в MAX: отправьте ему **код приглашения**.\n"
-            f"Код: `{referral_code}`\n\n"
-            "Когда друг **первый раз** сделает картинку или поздравление, вам начислят **+3★** "
-            "(один раз за друга).\n"
-            "Другу нужно нажать «Ввести код приглашения» и отправить код."
-        )
+        return ru.INVITE_FRIEND_UX.format(code=referral_code)
 
     def verify_notification_token(self, body: dict[str, Any]) -> bool:
         if self._s.tbank_skip_signature_verify:

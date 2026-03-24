@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import packages.shared.callbacks as cb
+from packages.shared import user_copy_ru as ru
 
 
 def paywall_keyboard() -> list[dict[str, Any]]:
@@ -46,32 +47,16 @@ def paywall_keyboard() -> list[dict[str, Any]]:
 
 
 def paywall_text_image_quota(*, used: int, limit: int) -> str:
-    return (
-        f"Сегодня использовано **{used}** из **{limit}** «картиночных» действий "
-        "(картинка или поздравление).\n\n"
-        "Что можно сделать:\n"
-        "• **Оплатить подписку** — кнопки «Для себя» или «Бизнес» откроют безопасную оплату Т-Банка.\n"
-        "• **Пригласить друга** — после его первой картинки вам +3★.\n"
-        "• **Ввести код приглашения**, если вас пригласили."
-    )
+    return ru.PAYWALL_IMAGE_QUOTA.format(used=used, limit=limit)
 
 
 def paywall_text_text_quota(*, used: int, limit: int) -> str:
-    return (
-        f"Достигнут лимит вопросов на сутки (**{used}** / **{limit}**).\n"
-        "Оформите подписку кнопкой ниже или вернитесь завтра."
-    )
+    return ru.PAYWALL_TEXT_QUOTA.format(used=used, limit=limit)
 
 
 def paywall_text_vk_not_entitled() -> str:
-    return (
-        "Посты для VK доступны на тарифе **бизнес — 490 ₽**.\n"
-        "Нажмите кнопку **«Бизнес — 490 ₽»** ниже — откроется оплата в Т-Банке."
-    )
+    return ru.PAYWALL_VK_NOT_ENTITLED
 
 
 def paywall_text_vk_quota(*, used: int, limit: int) -> str:
-    return (
-        f"Лимит постов VK в этом месяце: **{used}** / **{limit}**.\n"
-        "Продлите подписку или дождитесь следующего месяца."
-    )
+    return ru.PAYWALL_VK_QUOTA.format(used=used, limit=limit)

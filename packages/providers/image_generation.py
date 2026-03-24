@@ -18,6 +18,27 @@ from packages.shared.settings import Settings
 
 logger = logging.getLogger(__name__)
 
+# Лимит тела ответа Yandex в логах / safe_meta (без секретов)
+_MAX_ERROR_BODY_LOG = 16_384
+
+
+def _safe_yandex_submit_log_fields(body: dict[str, Any]) -> dict[str, Any]:
+    """Поля запроса imageGenerationAsync, безопасные для логов (без ключей)."""
+    msgs = body.get("messages")
+    n = len(msgs) if isinstance(msgs, list) else 0
+    first_text = ""
+    first_weight: Any = None
+    if n and isinstance(msgs[0], dict):
+        first_weight = msgs[0].get("weight")
+        first_text = str(msgs[0].get("text", ""))[:200]
+    return {
+        "modelUri": body.get("modelUri"),
+        "generationOptions": body.get("generationOptions"),
+        "messages_count": n,
+        "first_message_weight": first_weight,
+        "first_message_text_prefix": first_text,
+    }
+
 
 @runtime_checkable
 class ImageGenerationPort(Protocol):
@@ -117,26 +138,40 @@ class YandexFoundationImageProvider:
             "x-folder-id": folder,
             "Content-Type": "application/json",
         }
+        model_uri = self._model_uri()
+        # Формат REST Yandex Art: messages[].text + weight (строка), см. официальные примеры / Habr.
         body: dict[str, Any] = {
-            "modelUri": self._model_uri(),
+            "modelUri": model_uri,
             "generationOptions": {"aspectRatio": {"widthRatio": "1", "heightRatio": "1"}},
             "messages": [
                 {
-                    "weight": 1,
-                    "content": {"parts": [{"text": prompt[:2000]}]},
+                    "weight": "1",
+                    "text": prompt[:2000],
                 }
             ],
         }
+        job_id = (meta or {}).get("job_id")
+        req_safe = _safe_yandex_submit_log_fields(body)
         t0 = time.monotonic()
         try:
             async with httpx.AsyncClient(timeout=90.0) as client:
                 r = await client.post(self._s.yandex_image_async_url, headers=headers, json=body)
             if r.status_code >= 400:
-                logger.warning(
-                    "m5_event=image_provider_submit_failed correlation_id=%s status=%s body=%s",
+                err_body = (r.text or "")[:_MAX_ERROR_BODY_LOG]
+                logger.error(
+                    "m5_event=image_provider_submit_failed correlation_id=%s job_id=%s "
+                    "http_status=%s model_uri=%s endpoint=%s request_safe=%s",
                     correlation_id,
+                    job_id,
                     r.status_code,
-                    r.text[:300],
+                    model_uri,
+                    self._s.yandex_image_async_url,
+                    json.dumps(req_safe, ensure_ascii=False),
+                )
+                logger.error(
+                    "m5_event=image_provider_submit_failed_body correlation_id=%s response_body=%s",
+                    correlation_id,
+                    err_body,
                 )
                 return ImageGenerationResult(
                     ok=False,
@@ -144,7 +179,15 @@ class YandexFoundationImageProvider:
                     mime_type="image/png",
                     provider="yandex_art",
                     error_code=f"http_{r.status_code}",
-                    safe_meta={"submit": r.status_code},
+                    safe_meta={
+                        "submit": r.status_code,
+                        "model_uri": model_uri,
+                        "endpoint": self._s.yandex_image_async_url,
+                        "correlation_id": correlation_id,
+                        "job_id": job_id,
+                        "request_safe": req_safe,
+                        "response_body": err_body,
+                    },
                 )
             op = r.json()
             op_id = op.get("id")

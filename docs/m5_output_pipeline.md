@@ -15,7 +15,8 @@
 
 - Порт: `ImageGenerationPort` (`packages/providers/image_generation.py`).
 - **Stub:** `StubPillowImageProvider` — локальный PNG (градиент + фрагмент промпта).
-- **Yandex Art (async):** включите `YANDEX_IMAGE_GENERATION_ENABLED=true` при тех же ключе и каталоге, что и для текста. URL и шаблон операции настраиваются в `Settings` (`yandex_image_async_url`, `yandex_image_operations_url_template`, интервалы опроса).
+- **Yandex Art (async):** включите `YANDEX_IMAGE_GENERATION_ENABLED=true` при тех же ключе и каталоге, что и для текста. URL и шаблон операции настраиваются в `Settings` (`yandex_image_async_url`, `yandex_image_operations_url_template`, интервалы опроса). Тело `imageGenerationAsync`: в `messages` элементы с полями **`text`** и **`weight`** (строка, например `"1"`), не вложенный `content.parts`.
+- Отладка без MAX: `python scripts/yandex_image_smoke.py <промпт>`; при ошибке submit в логах — `m5_event=image_provider_submit_failed` и `m5_event=image_provider_submit_failed_body` (полный ответ API, без секретов в запросе).
 - Жизненный цикл `generation_jobs.status`: `queued` → `processing` → `succeeded` | `failed`.
 - В `provider_meta` попадают только **безопасные** поля (без секретов).
 

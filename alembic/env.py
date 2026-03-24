@@ -29,9 +29,14 @@ def _sync_url() -> str:
     )
     if raw.startswith("sqlite+aiosqlite"):
         return raw.replace("sqlite+aiosqlite:", "sqlite:", 1)
-    if raw.startswith("postgresql+asyncpg://"):
-        return raw.replace("postgresql+asyncpg://", "postgresql://", 1)
-    return raw
+    url = raw
+    if url.startswith("postgresql+asyncpg://"):
+        url = url.replace("postgresql+asyncpg://", "postgresql://", 1)
+    elif not url.startswith("postgresql://"):
+        return raw
+    # psycopg2 не принимает query-параметр ssl=require (часто в Supabase); нужен sslmode=require
+    url = url.replace("ssl=require", "sslmode=require")
+    return url
 
 
 def run_migrations_offline() -> None:

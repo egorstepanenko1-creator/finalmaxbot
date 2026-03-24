@@ -27,6 +27,33 @@ def _max_error_code(r: httpx.Response) -> str | None:
     return None
 
 
+def _normalize_max_upload_stage2_payload(up: dict[str, Any]) -> dict[str, Any] | None:
+    """
+    Ответ второго шага загрузки картинки в MAX.
+
+    Варианты:
+    - плоский: {"token": "...", ...}
+    - вложенный (live): {"photos": {"<photo_id>": {"token": "..."}}}
+    """
+    tok = up.get("token")
+    if tok is not None and str(tok).strip() != "":
+        return dict(up)
+
+    photos = up.get("photos")
+    if isinstance(photos, dict) and photos:
+        for photo_id, meta in photos.items():
+            if not isinstance(meta, dict):
+                continue
+            nested = meta.get("token")
+            if nested is not None and str(nested).strip() != "":
+                out: dict[str, Any] = {"token": str(nested), "photo_id": photo_id}
+                for k, v in meta.items():
+                    if k != "token":
+                        out.setdefault(k, v)
+                return out
+    return None
+
+
 class MaxBotClient:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
@@ -193,10 +220,11 @@ class MaxBotClient:
             if not isinstance(up, dict):
                 logger.warning("MAX upload stage2 not a dict: %s", str(up)[:300])
                 return None
-            if not up.get("token") and up.get("photo_id") is None:
-                logger.warning("MAX upload response without token/photo_id: %s", str(up)[:300])
+            normalized = _normalize_max_upload_stage2_payload(up)
+            if normalized is None:
+                logger.warning("MAX upload stage2 parse failed (no token): %s", str(up)[:400])
                 return None
-            return up
+            return normalized
 
     async def send_message_with_image(
         self,

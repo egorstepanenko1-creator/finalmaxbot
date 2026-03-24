@@ -1,4 +1,4 @@
-from sqlalchemy import event
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -30,6 +30,12 @@ def create_engine(database_url: str) -> AsyncEngine:
             cur.close()
 
     return engine
+
+
+async def ping_database(engine: AsyncEngine) -> None:
+    """Проверка живости БД (SELECT 1). Нужен реальный round-trip, не только parse URL."""
+    async with engine.connect() as conn:
+        await conn.execute(text("SELECT 1"))
 
 
 def get_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:

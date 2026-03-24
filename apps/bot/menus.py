@@ -54,6 +54,11 @@ def consumer_main_menu() -> list[dict[str, Any]]:
                             "text": "Подписка",
                             "payload": cb.CONSUMER_SUBSCRIPTION,
                         },
+                        {
+                            "type": "callback",
+                            "text": "Отменить автопродление",
+                            "payload": cb.CONSUMER_CANCEL_AUTORENEW,
+                        },
                     ),
                     _row(
                         {
@@ -103,6 +108,11 @@ def business_main_menu() -> list[dict[str, Any]]:
                             "type": "callback",
                             "text": "Подписка",
                             "payload": cb.BUSINESS_SUBSCRIPTION,
+                        },
+                        {
+                            "type": "callback",
+                            "text": "Отменить автопродление",
+                            "payload": cb.BUSINESS_CANCEL_AUTORENEW,
                         },
                     ),
                     _row(

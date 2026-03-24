@@ -22,3 +22,23 @@ class SubscriptionActivation:
     status: str
     external_id: str | None
     activated_at: datetime
+
+
+@dataclass
+class RecurrentPayload:
+    """Идентификаторы рекуррентной оплаты Т-Банка (не PAN/CVV)."""
+
+    rebill_id: str | None = None
+    parent_payment_id: str | None = None
+    customer_key: str | None = None
+
+
+@dataclass(frozen=True)
+class TbankWebhookResult:
+    """Результат разбора уведомления (для MAX и логов)."""
+
+    ok: bool
+    reason: str
+    user_id: int | None = None
+    max_notice: str = ""  # "", activated_initial, subscription_renewed, renewal_failed, access_expired
+    plan_code: str = ""

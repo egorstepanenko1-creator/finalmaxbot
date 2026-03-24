@@ -24,6 +24,7 @@ CONSUMER_MAKE_GREETING = join_parts("consumer", "make_greeting")
 CONSUMER_MY_STARS = join_parts("consumer", "my_stars")
 CONSUMER_INVITE = join_parts("consumer", "invite_friend")
 CONSUMER_SUBSCRIPTION = join_parts("consumer", "subscription")
+CONSUMER_CANCEL_AUTORENEW = join_parts("consumer", "cancel_autorenew")
 
 # Business main
 BUSINESS_VK_POST = join_parts("business", "create_vk_post")
@@ -31,6 +32,7 @@ BUSINESS_CREATE_IMAGE = join_parts("business", "create_image")
 BUSINESS_MY_STARS = join_parts("business", "my_stars")
 BUSINESS_INVITE = join_parts("business", "invite_friend")
 BUSINESS_SUBSCRIPTION = join_parts("business", "subscription")
+BUSINESS_CANCEL_AUTORENEW = join_parts("business", "cancel_autorenew")
 
 # Paywall / реферал
 PAYWALL_SUBSCRIBE = join_parts("paywall", "subscribe")

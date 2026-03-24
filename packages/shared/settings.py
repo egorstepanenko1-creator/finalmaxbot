@@ -74,6 +74,10 @@ class Settings(BaseSettings):
     m6_subscription_period_days: int = 30
     m6_require_max_token_if_outbound: bool = True
 
+    # M7: рекуррент (Т-Банк Init Recurrent=Y + MIT Charge)
+    m7_recurring_enabled: bool = True
+    m7_renewal_advance_hours: float = 36.0
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -1,5 +1,7 @@
 # M6: staging, MAX webhook, Т-Банк, подписки
 
+> **M7:** рекуррентные списания, состояния подписки, отмена автопродления, job продления и debug API — см. [`docs/m7_recurring.md`](m7_recurring.md).
+
 ## Staging и MAX
 
 1. **Публичный HTTPS** для API (reverse proxy или туннель вроде ngrok/cloudflared).

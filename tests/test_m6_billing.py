@@ -45,15 +45,15 @@ async def test_tbank_webhook_activates_plan(session_factory) -> None:
 
     body = _tbank_body(user_id=uid, payment_id="pay-m6-act-1", plan="consumer_plus_290")
     async with session_factory() as s:
-        ok, reason, internal = await process_tbank_notification_json(
+        res = await process_tbank_notification_json(
             session=s,
             body=body,
             billing=billing,
             verify_token=lambda _b: True,
         )
-    assert ok is True
-    assert reason == "activated"
-    assert internal == uid
+    assert res.ok is True
+    assert res.reason == "activated"
+    assert res.user_id == uid
 
     async with session_factory() as s:
         r = await s.execute(
@@ -76,22 +76,22 @@ async def test_duplicate_tbank_callback_idempotent(session_factory) -> None:
 
     body = _tbank_body(user_id=uid, payment_id="pay-m6-dup-1", plan="business_marketer_490")
     async with session_factory() as s:
-        ok1, r1, _ = await process_tbank_notification_json(
+        res1 = await process_tbank_notification_json(
             session=s,
             body=body,
             billing=billing,
             verify_token=lambda _b: True,
         )
     async with session_factory() as s:
-        ok2, r2, _ = await process_tbank_notification_json(
+        res2 = await process_tbank_notification_json(
             session=s,
             body=body,
             billing=billing,
             verify_token=lambda _b: True,
         )
-    assert r1 == "activated"
-    assert r2 == "duplicate"
-    assert ok1 and ok2
+    assert res1.reason == "activated"
+    assert res2.reason == "duplicate"
+    assert res1.ok and res2.ok
 
     async with session_factory() as s:
         n_act = await s.scalar(

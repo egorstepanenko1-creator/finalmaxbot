@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
-from packages.billing.domain import CheckoutSessionResult, SubscriptionActivation
+from packages.billing.domain import CheckoutSessionResult, RecurrentPayload, SubscriptionActivation
 
 
 @runtime_checkable
@@ -24,8 +24,35 @@ class BillingPort(Protocol):
         user_id: int,
         plan_code: str,
         external_payment_id: str | None,
+        recurrent: RecurrentPayload | None = None,
     ) -> SubscriptionActivation: ...
 
+    async def apply_successful_renewal(
+        self,
+        *,
+        session: Any,
+        user_id: int,
+        plan_code: str,
+        external_payment_id: str | None,
+    ) -> None: ...
+
+    async def apply_renewal_failure(
+        self,
+        *,
+        session: Any,
+        user_id: int,
+        plan_code: str,
+        correlation_payment_id: str | None,
+    ) -> None: ...
+
+    async def mark_subscription_expired(
+        self,
+        *,
+        session: Any,
+        user_id: int,
+    ) -> bool: ...
+
+    # cancel_subscription: отмена автопродления, доступ до expires_at
     async def cancel_subscription(self, *, session: Any, user_id: int) -> bool: ...
 
     async def handle_provider_webhook(self, *, payload: bytes, headers: dict[str, str]) -> str: ...

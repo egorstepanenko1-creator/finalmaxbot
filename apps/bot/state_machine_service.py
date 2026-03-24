@@ -34,6 +34,7 @@ from apps.bot.paywall import (
     paywall_text_vk_quota,
 )
 from packages.billing.interfaces import BillingPort
+from packages.billing.max_notices import notice_subscription_cancelled
 from packages.db.models import (
     ChatMessage,
     Conversation,
@@ -669,6 +670,24 @@ class StateMachineService:
                     attachments=consumer_main_menu(),
                 )
                 return
+            if cb.is_v1_consumer_action(segments, "cancel_autorenew"):
+                if cid:
+                    await client.answer_callback(callback_id=cid, notification="Автопродление")
+                changed = await self._billing.cancel_subscription(session=session, user_id=user.id)
+                if changed:
+                    await client.send_message(
+                        user_id=max_uid,
+                        text=notice_subscription_cancelled(),
+                        fmt="markdown",
+                        attachments=consumer_main_menu(),
+                    )
+                else:
+                    await client.send_message(
+                        user_id=max_uid,
+                        text="Сейчас нет платной подписки, для которой можно отключить автопродление.",
+                        attachments=consumer_main_menu(),
+                    )
+                return
 
         if user.current_mode == "business":
             if cb.is_v1_business_action(segments, "create_vk_post"):
@@ -752,6 +771,24 @@ class StateMachineService:
                     fmt="markdown",
                     attachments=business_main_menu(),
                 )
+                return
+            if cb.is_v1_business_action(segments, "cancel_autorenew"):
+                if cid:
+                    await client.answer_callback(callback_id=cid, notification="Автопродление")
+                changed = await self._billing.cancel_subscription(session=session, user_id=user.id)
+                if changed:
+                    await client.send_message(
+                        user_id=max_uid,
+                        text=notice_subscription_cancelled(),
+                        fmt="markdown",
+                        attachments=business_main_menu(),
+                    )
+                else:
+                    await client.send_message(
+                        user_id=max_uid,
+                        text="Сейчас нет платной подписки, для которой можно отключить автопродление.",
+                        attachments=business_main_menu(),
+                    )
                 return
 
         if cid:

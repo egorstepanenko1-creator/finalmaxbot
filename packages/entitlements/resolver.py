@@ -7,6 +7,7 @@ from typing import Any
 
 from sqlalchemy import select
 
+from packages.billing import subscription_states as ss
 from packages.db.models import Subscription, User
 
 
@@ -27,17 +28,23 @@ async def resolve_plan_code(session: Any, user: User) -> str:
     )
     sub = r.scalars().first()
     now = datetime.now(UTC)
-    if sub and sub.status == "active" and sub.plan_code in (
-        "consumer_plus_290",
-        "business_marketer_490",
-    ):
-        if sub.expires_at is not None:
-            exp = sub.expires_at
-            if exp.tzinfo is None:
-                exp = exp.replace(tzinfo=UTC)
-            if exp < now:
-                return "business_free" if user.current_mode == "business" else "consumer_free"
+    if not sub or sub.plan_code not in ("consumer_plus_290", "business_marketer_490"):
+        return "business_free" if user.current_mode == "business" else "consumer_free"
+
+    st = getattr(sub, "subscription_state", None) or ss.ACTIVE
+    if st == ss.PENDING_ACTIVATION:
+        return "business_free" if user.current_mode == "business" else "consumer_free"
+    if st == ss.EXPIRED:
+        return "business_free" if user.current_mode == "business" else "consumer_free"
+
+    if sub.expires_at is not None:
+        exp = sub.expires_at
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=UTC)
+        if exp < now:
+            return "business_free" if user.current_mode == "business" else "consumer_free"
+
+    if st in ss.PAID_ACCESS_STATES:
         return sub.plan_code
-    if user.current_mode == "business":
-        return "business_free"
-    return "consumer_free"
+
+    return "business_free" if user.current_mode == "business" else "consumer_free"

@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from alembic import command
 from apps.api.billing_webhook import router as billing_webhook_router
 from apps.api.internal_m4 import router as internal_m4_router
+from apps.api.internal_m7 import router as internal_m7_router
 from apps.bot.router import router as max_router
 from packages.db.session import create_engine, get_session_factory, init_db
 from packages.shared.settings import get_settings
@@ -59,6 +60,7 @@ def create_app() -> FastAPI:
 
     app.include_router(max_router)
     app.include_router(internal_m4_router)
+    app.include_router(internal_m7_router)
     app.include_router(billing_webhook_router)
     return app
 

@@ -191,6 +191,13 @@ class Subscription(Base):
     meta: Mapped[dict[str, Any] | None] = mapped_column(JSONObj, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # M7: жизненный цикл подписки (рекуррент)
+    subscription_state: Mapped[str] = mapped_column(String(32), default="active")
+    tbank_rebill_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    tbank_customer_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    tbank_parent_payment_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    auto_renew_enabled: Mapped[bool] = mapped_column(default=True)
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class BillingEvent(Base):

@@ -20,6 +20,17 @@ def warn_launch_readiness(settings: Settings) -> None:
         logger.warning(
             "m6_startup: MAX_WEBHOOK_SECRET пуст — рекомендуется задать для production webhook"
         )
+    mode = settings.max_mode.strip().lower()
+    if mode == "polling" and not (settings.max_bot_token or "").strip():
+        logger.warning("m6_startup: MAX_MODE=polling без MAX_BOT_TOKEN — входящие не придут")
+    if settings.max_auto_register_webhook and not (settings.public_base_url or "").strip():
+        logger.warning(
+            "m6_startup: MAX_AUTO_REGISTER_WEBHOOK=true без PUBLIC_BASE_URL — регистрация webhook пропущена"
+        )
+    if settings.max_auto_register_webhook and mode == "polling":
+        logger.warning(
+            "m6_startup: MAX_AUTO_REGISTER_WEBHOOK при MAX_MODE=polling — обычно нужен только один способ доставки"
+        )
     if settings.tbank_terminal_key and not settings.tbank_password:
         logger.warning("m6_startup: TBANK_TERMINAL_KEY без TBANK_PASSWORD — эквайринг не включится")
     if settings.tbank_password and not settings.tbank_terminal_key:

@@ -14,6 +14,8 @@ from apps.api.internal_debug_db import router as internal_debug_db_router
 from apps.api.internal_launch import router as internal_launch_router
 from apps.api.internal_m4 import router as internal_m4_router
 from apps.api.internal_m7 import router as internal_m7_router
+from apps.bot.max_polling import max_long_polling_loop
+from apps.bot.max_subscription import register_max_webhook_if_configured
 from apps.bot.router import router as max_router
 from packages.db.session import (
     create_engine,
@@ -64,8 +66,25 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     factory = get_session_factory(engine)
     app.state.engine = engine
     app.state.session_factory = factory
+    app.state.max_poll_marker = None
     logger.info("DB engine ready url=%s", _safe_db_url(settings.database_url))
+
+    await register_max_webhook_if_configured(settings)
+
+    poll_task: asyncio.Task[None] | None = None
+    if settings.max_mode.strip().lower() == "polling":
+        poll_task = asyncio.create_task(max_long_polling_loop(app))
+        app.state._max_polling_task = poll_task
+        logger.info("MAX_MODE=polling: запущен long poll /updates")
+
     yield
+
+    if poll_task is not None:
+        poll_task.cancel()
+        try:
+            await poll_task
+        except asyncio.CancelledError:
+            pass
     await engine.dispose()
 
 

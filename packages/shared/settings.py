@@ -14,6 +14,14 @@ class Settings(BaseSettings):
     max_bot_token: str | None = None
     max_api_base: str = "https://platform-api.max.ru"
     max_webhook_secret: str | None = None
+    # webhook | polling — при polling входящие через GET /updates (локальная отладка)
+    max_mode: str = "webhook"
+    # Публичный URL (ngrok) для авто-регистрации webhook: PUBLIC_BASE_URL + MAX_WEBHOOK_PATH
+    public_base_url: str | None = None
+    max_webhook_path: str = "/webhooks/max"
+    max_auto_register_webhook: bool = False
+    max_poll_limit: int = 50
+    max_poll_timeout_sec: int = 30
 
     # Postgres (Supabase) или локально sqlite+aiosqlite
     database_url: str = "sqlite+aiosqlite:///./finalmaxbot.db"

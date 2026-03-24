@@ -94,3 +94,57 @@ def extract_bot_started_user_id(update: dict[str, Any]) -> int | None:
             except (TypeError, ValueError):
                 continue
     return None
+
+
+def _int_or_none(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _chat_id_from_message(message: dict[str, Any]) -> int | None:
+    """Как в max-bot-mvp: recipient.chat_id приоритетен для POST /messages."""
+    rec = message.get("recipient")
+    if isinstance(rec, dict):
+        got = _int_or_none(rec.get("chat_id"))
+        if got is not None:
+            return got
+    got = _int_or_none(message.get("chat_id"))
+    if got is not None:
+        return got
+    ch = message.get("chat")
+    if isinstance(ch, dict):
+        return _int_or_none(ch.get("chat_id"))
+    return None
+
+
+def _chat_id_from_callback_update(update: dict[str, Any]) -> int | None:
+    for cid in (
+        update.get("chat_id"),
+        _dig(update, "message", "recipient", "chat_id"),
+        _dig(update, "recipient", "chat_id"),
+        _dig(update, "payload", "chat_id"),
+    ):
+        got = _int_or_none(cid)
+        if got is not None:
+            return got
+    return None
+
+
+def extract_outbound_max_chat_id(update: dict[str, Any]) -> int | None:
+    """
+    Идентификатор чата для platform-api: ?chat_id= (предпочтительно) vs ?user_id=.
+    Сверено с max-bot-mvp extractMessage / extractCallback + getTarget.
+    """
+    ut = extract_update_type(update)
+    if ut == "message_created":
+        msg = extract_message_from_update(update)
+        if isinstance(msg, dict):
+            return _chat_id_from_message(msg)
+        return None
+    if ut == "message_callback":
+        return _chat_id_from_callback_update(update)
+    return None

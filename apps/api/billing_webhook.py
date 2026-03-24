@@ -39,7 +39,7 @@ async def _send_max_notice(
         logger.warning("%s user_id=%s (no max_user_id)", log_event, internal_user_id)
         return
     client = MaxBotClient(settings)
-    ok = await client.send_message(user_id=max_uid, text=text, fmt="markdown")
+    ok = await client.send_message(user_id=max_uid, text=text)
     logger.info(
         "%s user_id=%s max_user_id=%s ok=%s",
         log_event,

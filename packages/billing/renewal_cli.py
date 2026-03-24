@@ -34,7 +34,7 @@ async def _amain() -> int:
             max_uid = await load_max_user_id(session, uid)
         if max_uid is None or not settings.max_outbound_enabled:
             continue
-        ok = await client.send_message(user_id=max_uid, text=notice_access_expired(), fmt="markdown")
+        ok = await client.send_message(user_id=max_uid, text=notice_access_expired())
         logger.info("m7_event=expiry_notice_sent user_id=%s max_user_id=%s ok=%s", uid, max_uid, ok)
     n = await run_renewal_charges(settings=settings, session_factory=factory)
     logger.info("m7_renewal_cli done renewals_attempted_ok=%s", n)

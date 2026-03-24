@@ -236,7 +236,7 @@ class GenerationOrchestrator:
         elif context_kind == "vk_post_image":
             t = meta.get("vk_post_text")
             if t:
-                await client.send_message(user_id=max_user_id, text=t, fmt="markdown")
+                await client.send_message(user_id=max_user_id, text=t)
                 await client.send_message(
                     user_id=max_user_id,
                     text=(
@@ -268,7 +268,7 @@ class GenerationOrchestrator:
             )
         elif context_kind == "vk_post_image":
             pt = job_meta.get("vk_post_text") or ""
-            await client.send_message(user_id=max_user_id, text=pt, fmt="markdown")
+            await client.send_message(user_id=max_user_id, text=pt)
             ok = await client.send_message_with_image(
                 user_id=max_user_id,
                 text="Иллюстрация для поста:",

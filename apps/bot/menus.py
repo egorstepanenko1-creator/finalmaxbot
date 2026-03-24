@@ -21,17 +21,17 @@ def consumer_quick_start_keyboard() -> list[dict[str, Any]]:
                     _row(
                         {
                             "type": "callback",
-                            "text": "Вопрос",
+                            "text": "Задать вопрос 💬",
                             "payload": cb.CONSUMER_ASK_QUESTION,
                         },
                         {
                             "type": "callback",
-                            "text": "Картинка",
+                            "text": "Сделать картинку 🎨",
                             "payload": cb.CONSUMER_CREATE_IMAGE,
                         },
                         {
                             "type": "callback",
-                            "text": "Поздравление",
+                            "text": "Сделать поздравление 🎁",
                             "payload": cb.CONSUMER_MAKE_GREETING,
                         },
                     ),
@@ -112,19 +112,19 @@ def consumer_main_menu() -> list[dict[str, Any]]:
                     _row(
                         {
                             "type": "callback",
-                            "text": "Задать вопрос",
+                            "text": "Задать вопрос 💬",
                             "payload": cb.CONSUMER_ASK_QUESTION,
                         },
                         {
                             "type": "callback",
-                            "text": "Сделать картинку",
+                            "text": "Сделать картинку 🎨",
                             "payload": cb.CONSUMER_CREATE_IMAGE,
                         },
                     ),
                     _row(
                         {
                             "type": "callback",
-                            "text": "Поздравление",
+                            "text": "Сделать поздравление 🎁",
                             "payload": cb.CONSUMER_MAKE_GREETING,
                         },
                     ),
@@ -138,32 +138,47 @@ def consumer_main_menu() -> list[dict[str, Any]]:
                     _row(
                         {
                             "type": "callback",
-                            "text": "Мои звёзды",
+                            "text": "Мои звёзды ⭐",
                             "payload": cb.CONSUMER_MY_STARS,
                         },
                         {
                             "type": "callback",
-                            "text": "Пригласить друга",
+                            "text": "Пригласить друга 👥",
                             "payload": cb.CONSUMER_INVITE,
                         },
                     ),
                     _row(
                         {
                             "type": "callback",
-                            "text": "Подписка",
+                            "text": "Подписка 💳",
                             "payload": cb.CONSUMER_SUBSCRIPTION,
-                        },
-                        {
-                            "type": "callback",
-                            "text": "Отменить автопродление",
-                            "payload": cb.CONSUMER_CANCEL_AUTORENEW,
                         },
                     ),
                     _row(
                         {
                             "type": "callback",
-                            "text": "Ввести код приглашения",
+                            "text": "У меня есть код",
                             "payload": cb.CONSUMER_ENTER_REFERRAL,
+                        },
+                    ),
+                ]
+            },
+        }
+    ]
+
+
+def consumer_subscription_keyboard() -> list[dict[str, Any]]:
+    """Экран подписки / оплаты: отмена автопродления не в главном меню."""
+    return [
+        {
+            "type": "inline_keyboard",
+            "payload": {
+                "buttons": [
+                    _row(
+                        {
+                            "type": "callback",
+                            "text": "Отменить автопродление",
+                            "payload": cb.CONSUMER_CANCEL_AUTORENEW,
                         },
                     ),
                 ]
@@ -200,32 +215,46 @@ def business_main_menu() -> list[dict[str, Any]]:
                     _row(
                         {
                             "type": "callback",
-                            "text": "Мои звёзды",
+                            "text": "Мои звёзды ⭐",
                             "payload": cb.BUSINESS_MY_STARS,
                         },
                         {
                             "type": "callback",
-                            "text": "Пригласить друга",
+                            "text": "Пригласить друга 👥",
                             "payload": cb.BUSINESS_INVITE,
                         },
                     ),
                     _row(
                         {
                             "type": "callback",
-                            "text": "Подписка",
+                            "text": "Подписка 💳",
                             "payload": cb.BUSINESS_SUBSCRIPTION,
-                        },
-                        {
-                            "type": "callback",
-                            "text": "Отменить автопродление",
-                            "payload": cb.BUSINESS_CANCEL_AUTORENEW,
                         },
                     ),
                     _row(
                         {
                             "type": "callback",
-                            "text": "Ввести код приглашения",
+                            "text": "У меня есть код",
                             "payload": cb.BUSINESS_ENTER_REFERRAL,
+                        },
+                    ),
+                ]
+            },
+        }
+    ]
+
+
+def business_subscription_keyboard() -> list[dict[str, Any]]:
+    return [
+        {
+            "type": "inline_keyboard",
+            "payload": {
+                "buttons": [
+                    _row(
+                        {
+                            "type": "callback",
+                            "text": "Отменить автопродление",
+                            "payload": cb.BUSINESS_CANCEL_AUTORENEW,
                         },
                     ),
                 ]

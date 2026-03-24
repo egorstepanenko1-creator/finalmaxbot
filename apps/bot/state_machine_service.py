@@ -28,9 +28,11 @@ from apps.bot.max_payload import (
 from apps.bot.menus import (
     business_main_menu,
     business_quick_start_keyboard,
+    business_subscription_keyboard,
     business_templates_keyboard,
     consumer_main_menu,
     consumer_quick_start_keyboard,
+    consumer_subscription_keyboard,
     consumer_templates_keyboard,
     mode_selection_keyboard,
 )
@@ -158,7 +160,6 @@ class StateMachineService:
         await client.send_message(
             user_id=max_uid,
             text=text,
-            fmt="markdown",
             attachments=paywall_keyboard(),
         )
 
@@ -200,7 +201,6 @@ class StateMachineService:
         await client.send_message(
             user_id=max_uid,
             text=ru.TEMPLATE_FOLLOWUP.format(draft=tpl.draft),
-            fmt="markdown",
             attachments=consumer_main_menu(),
         )
 
@@ -242,7 +242,6 @@ class StateMachineService:
         await client.send_message(
             user_id=max_uid,
             text=ru.TEMPLATE_FOLLOWUP.format(draft=tpl.draft),
-            fmt="markdown",
             attachments=business_main_menu(),
         )
 
@@ -258,7 +257,6 @@ class StateMachineService:
         await client.send_message(
             user_id=uid,
             text=f"{ru.WELCOME}\n\n{ru.MODE_SELECT_NUDGE}",
-            fmt="markdown",
             attachments=mode_selection_keyboard(),
         )
 
@@ -279,7 +277,6 @@ class StateMachineService:
             await client.send_message(
                 user_id=max_uid,
                 text=ru.MODE_SELECT_NUDGE,
-                fmt="markdown",
                 attachments=mode_selection_keyboard(),
             )
             return
@@ -352,7 +349,7 @@ class StateMachineService:
 
         if conv.flow_state == st.CONSUMER_AWAIT_GREETING_PROMPT:
             if not text.strip():
-                await client.send_message(user_id=max_uid, text=ru.GREETING_PROMPT, fmt="markdown")
+                await client.send_message(user_id=max_uid, text=ru.GREETING_PROMPT)
                 return
             chk = await self._ent.can_start_consumer_greeting_flow(session, user)
             if not chk.allowed:
@@ -381,7 +378,7 @@ class StateMachineService:
 
         if conv.flow_state == st.BUSINESS_AWAIT_VK_POST_PROMPT:
             if not text.strip():
-                await client.send_message(user_id=max_uid, text=ru.VK_POST_PROMPT, fmt="markdown")
+                await client.send_message(user_id=max_uid, text=ru.VK_POST_PROMPT)
                 return
             chk = await self._ent.can_start_business_vk_flow(session, user)
             if not chk.allowed:
@@ -415,7 +412,7 @@ class StateMachineService:
                     if conv.flow_state == st.CONSUMER_AWAIT_IMAGE_PROMPT
                     else ru.CREATE_IMAGE_BUSINESS_PROMPT
                 )
-                await client.send_message(user_id=max_uid, text=_img_hint, fmt="markdown")
+                await client.send_message(user_id=max_uid, text=_img_hint)
                 return
             mode = "consumer" if conv.flow_state == st.CONSUMER_AWAIT_IMAGE_PROMPT else "business"
             if mode == "consumer":
@@ -449,8 +446,8 @@ class StateMachineService:
             jid = job.id
             menu = consumer_main_menu() if mode == "consumer" else business_main_menu()
             ack = (
-                f"Принял описание (заявка №{jid}). Генерирую картинку — обычно до пары минут.\n"
-                f"Водяной знак по тарифу: {'да' if job.watermark_required else 'нет'}."
+                "Принял описание. Генерирую картинку — обычно до пары минут.\n"
+                "Можно не закрывать чат: результат придёт сюда."
             )
             await self._log_chat(session, conv, "assistant", ack, {"job_id": jid, "correlation_id": correlation_id})
             await client.send_message(user_id=max_uid, text=ack)
@@ -507,7 +504,6 @@ class StateMachineService:
                 await client.send_message(
                     user_id=max_uid,
                     text=ru.PAYMENT_LINK_UNAVAILABLE,
-                    fmt="markdown",
                     attachments=(
                         consumer_main_menu()
                         if user.current_mode == "consumer"
@@ -515,19 +511,18 @@ class StateMachineService:
                     ),
                 )
                 return True
+            sub_att = (
+                consumer_subscription_keyboard()
+                if user.current_mode == "consumer"
+                else business_subscription_keyboard()
+            )
             await client.send_message(
                 user_id=max_uid,
                 text=(
                     f"{self._billing.subscription_ux_message()}\n\n"
-                    f"**Ссылка для оплаты** (Т-Банк, безопасно):\n{cs.payment_url}\n\n"
-                    f"Тариф: `{cs.plan_code}`"
+                    f"Ссылка для оплаты в Т-Банке:\n{cs.payment_url}"
                 ),
-                fmt="markdown",
-                attachments=(
-                    consumer_main_menu()
-                    if user.current_mode == "consumer"
-                    else business_main_menu()
-                ),
+                attachments=sub_att,
             )
             return True
         if cb.is_v1_paywall_action(segments, "invite"):
@@ -537,7 +532,6 @@ class StateMachineService:
             await client.send_message(
                 user_id=max_uid,
                 text=self._billing.invite_friend_ux_message(referral_code=code),
-                fmt="markdown",
                 attachments=(
                     consumer_main_menu()
                     if user.current_mode == "consumer"
@@ -552,7 +546,6 @@ class StateMachineService:
             await client.send_message(
                 user_id=max_uid,
                 text=ru.REFERRAL_CODE_PROMPT,
-                fmt="markdown",
             )
             return True
         return False
@@ -588,26 +581,22 @@ class StateMachineService:
                 await client.send_message(
                     user_id=max_uid,
                     text=ru.AFTER_MODE_CONSUMER,
-                    fmt="markdown",
                     attachments=consumer_main_menu(),
                 )
                 await client.send_message(
                     user_id=max_uid,
                     text=ru.FIRST_ACTIONS_CONSUMER_HINT,
-                    fmt="markdown",
                     attachments=consumer_quick_start_keyboard(),
                 )
             else:
                 await client.send_message(
                     user_id=max_uid,
                     text=ru.AFTER_MODE_BUSINESS,
-                    fmt="markdown",
                     attachments=business_main_menu(),
                 )
                 await client.send_message(
                     user_id=max_uid,
                     text=ru.FIRST_ACTIONS_BUSINESS_HINT,
-                    fmt="markdown",
                     attachments=business_quick_start_keyboard(),
                 )
             return
@@ -618,7 +607,6 @@ class StateMachineService:
             await client.send_message(
                 user_id=max_uid,
                 text=ru.MODE_SELECT_NUDGE,
-                fmt="markdown",
                 attachments=mode_selection_keyboard(),
             )
             return
@@ -639,7 +627,6 @@ class StateMachineService:
             await client.send_message(
                 user_id=max_uid,
                 text=ru.TEMPLATES_MENU_TITLE_CONSUMER,
-                fmt="markdown",
                 attachments=consumer_templates_keyboard(),
             )
             return
@@ -649,7 +636,6 @@ class StateMachineService:
             await client.send_message(
                 user_id=max_uid,
                 text=ru.TEMPLATES_MENU_TITLE_BUSINESS,
-                fmt="markdown",
                 attachments=business_templates_keyboard(),
             )
             return
@@ -672,7 +658,6 @@ class StateMachineService:
             await client.send_message(
                 user_id=max_uid,
                 text=ru.MODE_SELECT_NUDGE,
-                fmt="markdown",
                 attachments=mode_selection_keyboard(),
             )
             return
@@ -681,13 +666,13 @@ class StateMachineService:
             conv.flow_state = st.AWAIT_REFERRAL_CODE
             if cid:
                 await client.answer_callback(callback_id=cid, notification="Код")
-            await client.send_message(user_id=max_uid, text=ru.REFERRAL_CODE_PROMPT, fmt="markdown")
+            await client.send_message(user_id=max_uid, text=ru.REFERRAL_CODE_PROMPT)
             return
         if user.current_mode == "business" and segments == ["business", "enter_referral_code"]:
             conv.flow_state = st.AWAIT_REFERRAL_CODE
             if cid:
                 await client.answer_callback(callback_id=cid, notification="Код")
-            await client.send_message(user_id=max_uid, text=ru.REFERRAL_CODE_PROMPT, fmt="markdown")
+            await client.send_message(user_id=max_uid, text=ru.REFERRAL_CODE_PROMPT)
             return
 
         if user.current_mode == "consumer":
@@ -704,7 +689,6 @@ class StateMachineService:
                 await client.send_message(
                     user_id=max_uid,
                     text=ru.ASK_QUESTION_PROMPT,
-                    fmt="markdown",
                 )
                 return
             if cb.is_v1_consumer_action(segments, "create_image"):
@@ -720,7 +704,6 @@ class StateMachineService:
                 await client.send_message(
                     user_id=max_uid,
                     text=ru.CREATE_IMAGE_CONSUMER_PROMPT,
-                    fmt="markdown",
                 )
                 return
             if cb.is_v1_consumer_action(segments, "make_greeting"):
@@ -736,7 +719,6 @@ class StateMachineService:
                 await client.send_message(
                     user_id=max_uid,
                     text=ru.GREETING_PROMPT,
-                    fmt="markdown",
                 )
                 return
             if cb.is_v1_consumer_action(segments, "my_stars"):
@@ -746,7 +728,6 @@ class StateMachineService:
                 await client.send_message(
                     user_id=max_uid,
                     text=ru.STARS_CONSUMER.format(balance=bal),
-                    fmt="markdown",
                     attachments=consumer_main_menu(),
                 )
                 return
@@ -757,7 +738,6 @@ class StateMachineService:
                 await client.send_message(
                     user_id=max_uid,
                     text=self._billing.invite_friend_ux_message(referral_code=code),
-                    fmt="markdown",
                     attachments=consumer_main_menu(),
                 )
                 return
@@ -772,7 +752,6 @@ class StateMachineService:
                     await client.send_message(
                         user_id=max_uid,
                         text=ru.PAYMENT_LINK_UNAVAILABLE,
-                        fmt="markdown",
                         attachments=consumer_main_menu(),
                     )
                     return
@@ -780,11 +759,9 @@ class StateMachineService:
                     user_id=max_uid,
                     text=(
                         f"{self._billing.subscription_ux_message()}\n\n"
-                        f"**Ссылка на оплату (Т-Банк):**\n{cs.payment_url}\n\n"
-                        f"Тариф: `{cs.plan_code}`"
+                        f"Ссылка для оплаты в Т-Банке:\n{cs.payment_url}"
                     ),
-                    fmt="markdown",
-                    attachments=consumer_main_menu(),
+                    attachments=consumer_subscription_keyboard(),
                 )
                 return
             if cb.is_v1_consumer_action(segments, "cancel_autorenew"):
@@ -795,14 +772,12 @@ class StateMachineService:
                     await client.send_message(
                         user_id=max_uid,
                         text=notice_subscription_cancelled(),
-                        fmt="markdown",
                         attachments=consumer_main_menu(),
                     )
                 else:
                     await client.send_message(
                         user_id=max_uid,
                         text=ru.NO_AUTORENEW_TO_CANCEL,
-                        fmt="markdown",
                         attachments=consumer_main_menu(),
                     )
                 return
@@ -821,7 +796,6 @@ class StateMachineService:
                 await client.send_message(
                     user_id=max_uid,
                     text=ru.VK_POST_PROMPT,
-                    fmt="markdown",
                 )
                 return
             if cb.is_v1_business_action(segments, "create_image"):
@@ -837,7 +811,6 @@ class StateMachineService:
                 await client.send_message(
                     user_id=max_uid,
                     text=ru.CREATE_IMAGE_BUSINESS_PROMPT,
-                    fmt="markdown",
                 )
                 return
             if cb.is_v1_business_action(segments, "my_stars"):
@@ -847,7 +820,6 @@ class StateMachineService:
                 await client.send_message(
                     user_id=max_uid,
                     text=ru.STARS_BUSINESS.format(balance=bal),
-                    fmt="markdown",
                     attachments=business_main_menu(),
                 )
                 return
@@ -858,7 +830,6 @@ class StateMachineService:
                 await client.send_message(
                     user_id=max_uid,
                     text=self._billing.invite_friend_ux_message(referral_code=code),
-                    fmt="markdown",
                     attachments=business_main_menu(),
                 )
                 return
@@ -873,7 +844,6 @@ class StateMachineService:
                     await client.send_message(
                         user_id=max_uid,
                         text=ru.PAYMENT_LINK_UNAVAILABLE,
-                        fmt="markdown",
                         attachments=business_main_menu(),
                     )
                     return
@@ -881,11 +851,9 @@ class StateMachineService:
                     user_id=max_uid,
                     text=(
                         f"{self._billing.subscription_ux_message()}\n\n"
-                        f"**Ссылка на оплату (Т-Банк):**\n{cs.payment_url}\n\n"
-                        f"Тариф: `{cs.plan_code}`"
+                        f"Ссылка для оплаты в Т-Банке:\n{cs.payment_url}"
                     ),
-                    fmt="markdown",
-                    attachments=business_main_menu(),
+                    attachments=business_subscription_keyboard(),
                 )
                 return
             if cb.is_v1_business_action(segments, "cancel_autorenew"):
@@ -896,14 +864,12 @@ class StateMachineService:
                     await client.send_message(
                         user_id=max_uid,
                         text=notice_subscription_cancelled(),
-                        fmt="markdown",
                         attachments=business_main_menu(),
                     )
                 else:
                     await client.send_message(
                         user_id=max_uid,
                         text=ru.NO_AUTORENEW_TO_CANCEL,
-                        fmt="markdown",
                         attachments=business_main_menu(),
                     )
                 return

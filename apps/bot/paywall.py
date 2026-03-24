@@ -29,14 +29,14 @@ def paywall_keyboard() -> list[dict[str, Any]]:
                     [
                         {
                             "type": "callback",
-                            "text": "Пригласить друга",
+                            "text": "Пригласить друга 👥",
                             "payload": cb.PAYWALL_INVITE,
                         },
                     ],
                     [
                         {
                             "type": "callback",
-                            "text": "Ввести код приглашения",
+                            "text": "У меня есть код",
                             "payload": cb.PAYWALL_ENTER_CODE,
                         },
                     ],

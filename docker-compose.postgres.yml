@@ -1,0 +1,34 @@
+# Дополнение для локальной/staging разработки с Postgres в Docker.
+# Запуск:
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up --build -d
+#
+# Пароль по умолчанию только для dev; в бою используйте сильный POSTGRES_PASSWORD.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: finalmaxbot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-finalmaxbot_dev_change_me}
+      POSTGRES_DB: finalmaxbot
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finalmaxbot -d finalmaxbot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  app:
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://finalmaxbot:${POSTGRES_PASSWORD:-finalmaxbot_dev_change_me}@postgres:5432/finalmaxbot
+
+volumes:
+  pg_data:

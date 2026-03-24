@@ -1,0 +1,42 @@
+# Базовый запуск: только приложение + том под медиа.
+# DATABASE_URL задайте сами (Supabase, облачный Postgres и т.д.).
+#
+# С локальным Postgres:
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up --build -d
+
+name: finalmaxbot
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    environment:
+      # В корне проекта можно задать в .env (Supabase и т.д.). См. docker-compose.postgres.yml для локального Postgres.
+      DATABASE_URL: ${DATABASE_URL:-}
+      M5_LOCAL_STORAGE_ROOT: /data/generated
+      RUN_ALEMBIC_ON_STARTUP: ${RUN_ALEMBIC_ON_STARTUP:-true}
+      MAX_OUTBOUND_ENABLED: ${MAX_OUTBOUND_ENABLED:-false}
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - media_data:/data/generated
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 50s
+
+volumes:
+  media_data:

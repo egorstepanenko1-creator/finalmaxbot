@@ -1,0 +1,48 @@
+# Git / IDE
+.git
+.gitignore
+.cursor
+*.md
+!README.md
+
+# Secrets (never copy into build context)
+.env
+.env.*
+!.env.example
+
+# Python
+.venv
+venv
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+pip-wheel-metadata
+
+# Tests / coverage / caches
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov
+coverage.xml
+tests
+
+# Local DB & runtime data (не класть SQLite и сгенерированные файлы в образ)
+*.db
+*.sqlite
+*.sqlite3
+data/
+
+# Logs
+logs
+*.log
+
+# Docker: compose-файлы в контекст не нужны; Dockerfile читается отдельно клиентом
+docker-compose*.yml
+.dockerignore
+
+# Misc
+terminals
+mcps
+agent-transcripts

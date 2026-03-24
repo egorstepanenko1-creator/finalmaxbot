@@ -46,6 +46,24 @@ class MaxBotClient:
         if fmt:
             body["format"] = fmt
         url = f"{self._base}/messages"
+        log_body: dict[str, Any] = dict(body)
+        if attachments:
+            log_body["attachments"] = [
+                {
+                    "type": a.get("type"),
+                    "payload": (
+                        {"token_set": bool((a.get("payload") or {}).get("token"))}
+                        if isinstance(a.get("payload"), dict)
+                        else a.get("payload")
+                    ),
+                }
+                for a in attachments
+            ]
+        logger.info(
+            "m5_event=max_outbound_messages_request user_id=%s body=%s",
+            user_id,
+            json.dumps(log_body, ensure_ascii=False)[:4000],
+        )
         async with httpx.AsyncClient(timeout=30.0) as client:
             r = await client.post(
                 url,
@@ -61,7 +79,12 @@ class MaxBotClient:
                     user_id,
                 )
                 return False
-            logger.debug("MAX POST /messages ok user_id=%s", user_id)
+            logger.info(
+                "m5_event=max_outbound_messages_ok user_id=%s status=%s attachment_count=%s",
+                user_id,
+                r.status_code,
+                len(attachments or []),
+            )
             return True
 
     async def upload_image_bytes(

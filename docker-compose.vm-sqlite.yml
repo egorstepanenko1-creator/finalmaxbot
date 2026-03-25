@@ -1,0 +1,18 @@
+# VM / первый прод: SQLite на именованном томе, запись под root в контейнере (том по умолчанию root-owned).
+# Запуск: docker compose -f docker-compose.yml -f docker-compose.vm-sqlite.yml up --build -d
+# В .env: DATABASE_URL=sqlite+aiosqlite:////data/db/finalmaxbot.db
+
+services:
+  app:
+    # Иначе ${DATABASE_URL} из корневого .env разработчика (часто ./finalmaxbot.db) перебивает env_file и ломает том.
+    environment:
+      DATABASE_URL: sqlite+aiosqlite:////data/db/finalmaxbot.db
+      # Корневой .env разработчика часто отключает миграции — на VM с томом SQLite они обязательны.
+      RUN_ALEMBIC_ON_STARTUP: "true"
+    user: "0:0"
+    volumes:
+      - media_data:/data/generated
+      - sqlite_data:/data/db
+
+volumes:
+  sqlite_data:
